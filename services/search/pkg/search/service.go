@@ -269,6 +269,8 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 		return nil, err
 	}
 
+	mergedAggregations := map[string]map[string]*searchmsgBucket{}
+	aggOrder := []string{}
 	for _, res := range responses {
 		if res == nil {
 			continue
@@ -276,6 +278,24 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 		total += res.TotalMatches
 		for _, match := range res.Matches {
 			matches = append(matches, match)
+		}
+		for _, agg := range res.GetAggregations() {
+			field := agg.GetField()
+			if _, ok := mergedAggregations[field]; !ok {
+				mergedAggregations[field] = map[string]*searchmsgBucket{}
+				aggOrder = append(aggOrder, field)
+			}
+			for _, b := range agg.GetBuckets() {
+				if existing, ok := mergedAggregations[field][b.GetKey()]; ok {
+					existing.Count += b.GetCount()
+					continue
+				}
+				mergedAggregations[field][b.GetKey()] = &searchsvc.Bucket{
+					Key:                    b.GetKey(),
+					Count:                  b.GetCount(),
+					AggregationFilterToken: b.GetAggregationFilterToken(),
+				}
+			}
 		}
 	}
 
@@ -289,12 +309,28 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 		matches = matches[0:limit]
 	}
 
+	aggregations := make([]*searchsvc.AggregationResult, 0, len(aggOrder))
+	for _, field := range aggOrder {
+		buckets := make([]*searchsvc.Bucket, 0, len(mergedAggregations[field]))
+		for _, b := range mergedAggregations[field] {
+			buckets = append(buckets, b)
+		}
+		aggregations = append(aggregations, &searchsvc.AggregationResult{
+			Field:   field,
+			Buckets: buckets,
+		})
+	}
+
 	success = true
 	return &searchsvc.SearchResponse{
 		Matches:      matches,
 		TotalMatches: total,
+		Aggregations: aggregations,
 	}, nil
 }
+
+// searchmsgBucket is an alias to make the bucket map-of-maps easier to read.
+type searchmsgBucket = searchsvc.Bucket
 
 func (s *Service) searchIndex(ctx context.Context, req *searchsvc.SearchRequest, space *provider.StorageSpace, mountpointID string) (*searchsvc.SearchIndexResponse, error) {
 	if req.Ref != nil &&
@@ -393,7 +429,8 @@ func (s *Service) searchIndex(ctx context.Context, req *searchsvc.SearchRequest,
 	}
 
 	searchRequest := &searchsvc.SearchIndexRequest{
-		Query: req.Query,
+		Query:        req.Query,
+		Aggregations: req.GetAggregations(),
 		Ref: &searchmsg.Reference{
 			ResourceId: searchRootID,
 			Path:       searchPathPrefix,
