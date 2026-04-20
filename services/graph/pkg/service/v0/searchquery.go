@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"path"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	searchmsg "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/messages/search/v0"
 	searchsvc "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/services/search/v0"
 	"github.com/opencloud-eu/opencloud/services/graph/pkg/errorcode"
+	"github.com/opencloud-eu/opencloud/services/search/pkg/search"
 )
 
 // SearchQuery runs one or more search requests and returns the results grouped
@@ -33,6 +35,13 @@ func (g Graph) SearchQuery(w http.ResponseWriter, r *http.Request) {
 	if len(req.Requests) == 0 {
 		errorcode.InvalidRequest.Render(w, r, http.StatusBadRequest, "requests array must not be empty")
 		return
+	}
+
+	for _, sr := range req.Requests {
+		if err := validateAggregations(sr.Aggregations); err != nil {
+			errorcode.InvalidRequest.Render(w, r, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	th := r.Header.Get(revaCtx.TokenHeader)
@@ -100,6 +109,29 @@ func (g Graph) runSingleSearch(ctx context.Context, sr libregraph.SearchRequest)
 			Aggregations:         searchAggregationsToLibregraph(rsp.Aggregations),
 		}},
 	}, nil
+}
+
+// validateAggregations rejects requests that cannot be served consistently
+// across search backends. Numeric fields (and time.Time) are indexed as
+// prefix-coded binary in bleve, which makes terms aggregations on them
+// useless (many meaningless buckets per real value). Range aggregations are
+// the supported alternative — and OpenSearch honours the same contract so
+// clients don't have to care which backend is deployed.
+//
+// Field classification is derived via reflection over the indexed struct
+// (see search.IsNumericField), so new facet fields picked up automatically.
+func validateAggregations(aggs []libregraph.AggregationOption) error {
+	for _, a := range aggs {
+		if !search.IsNumericField(a.Field) {
+			continue
+		}
+		hasRanges := a.BucketDefinition != nil && len(a.BucketDefinition.Ranges) > 0
+		if hasRanges {
+			continue
+		}
+		return fmt.Errorf("terms aggregation is not supported on numeric field %q; use bucketDefinition.ranges", a.Field)
+	}
+	return nil
 }
 
 // applyAggregationFilters joins the query string with the aggregation filters

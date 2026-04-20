@@ -112,3 +112,71 @@ func TestSearchQueryHandlerForwardsAggregations(t *testing.T) {
 		t.Fatalf("want 2 buckets, got %d", len(aggs[0].Buckets))
 	}
 }
+
+func TestSearchQueryRejectsTermsOnNumericField(t *testing.T) {
+	stub := stubSearchService{
+		search: func(req *searchsvc.SearchRequest) (*searchsvc.SearchResponse, error) {
+			t.Fatal("search service must not be called when validation fails")
+			return nil, nil
+		},
+	}
+	logger := log.NewLogger()
+	g := Graph{
+		BaseGraphService: BaseGraphService{logger: &logger},
+		searchService:    stub,
+	}
+
+	body := `{
+		"requests": [{
+			"entityTypes": ["driveItem"],
+			"query": {"queryString": "mediatype:audio"},
+			"size": 0,
+			"aggregations": [{"field": "audio.year"}]
+		}]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/search/query", bytes.NewBufferString(body))
+	rr := httptest.NewRecorder()
+	g.SearchQuery(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestSearchQueryAllowsRangesOnNumericField(t *testing.T) {
+	called := false
+	stub := stubSearchService{
+		search: func(req *searchsvc.SearchRequest) (*searchsvc.SearchResponse, error) {
+			called = true
+			return &searchsvc.SearchResponse{}, nil
+		},
+	}
+	logger := log.NewLogger()
+	g := Graph{
+		BaseGraphService: BaseGraphService{logger: &logger},
+		searchService:    stub,
+	}
+
+	body := `{
+		"requests": [{
+			"entityTypes": ["driveItem"],
+			"query": {"queryString": "mediatype:audio"},
+			"size": 0,
+			"aggregations": [{
+				"field": "audio.year",
+				"bucketDefinition": {
+					"sortBy": "keyAsString",
+					"ranges": [{"from": "1970", "to": "1980"}]
+				}
+			}]
+		}]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/search/query", bytes.NewBufferString(body))
+	rr := httptest.NewRecorder()
+	g.SearchQuery(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !called {
+		t.Fatal("search service should have been called with a range aggregation")
+	}
+}
