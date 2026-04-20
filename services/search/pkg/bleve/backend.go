@@ -88,6 +88,10 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 		bleveReq.Size = int(sir.PageSize)
 	}
 
+	for _, agg := range sir.GetAggregations() {
+		bleveReq.AddFacet(agg.GetField(), newBleveFacetRequest(agg))
+	}
+
 	bleveReq.Fields = []string{"*"}
 	res, err := b.index.Search(bleveReq)
 	if err != nil {
@@ -153,7 +157,47 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 	return &searchService.SearchIndexResponse{
 		Matches:      matches,
 		TotalMatches: int32(totalMatches),
+		Aggregations: extractBleveAggregations(res, sir.GetAggregations()),
 	}, nil
+}
+
+// defaultFacetSize is used when the request does not specify a size. Bleve
+// requires a positive integer; we collect up to this many buckets per space
+// and let the service layer trim after cross-space merging.
+const defaultFacetSize = 1000
+
+func newBleveFacetRequest(agg *searchService.AggregationOption) *bleve.FacetRequest {
+	size := int(agg.GetSize())
+	if size <= 0 {
+		size = defaultFacetSize
+	}
+	return bleve.NewFacetRequest(agg.GetField(), size)
+}
+
+func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.AggregationOption) []*searchService.AggregationResult {
+	if len(aggs) == 0 || len(res.Facets) == 0 {
+		return nil
+	}
+	out := make([]*searchService.AggregationResult, 0, len(aggs))
+	for _, agg := range aggs {
+		fr, ok := res.Facets[agg.GetField()]
+		if !ok {
+			continue
+		}
+		buckets := make([]*searchService.Bucket, 0)
+		for _, t := range fr.Terms.Terms() {
+			buckets = append(buckets, &searchService.Bucket{
+				Key:                    t.Term,
+				Count:                  int64(t.Count),
+				AggregationFilterToken: t.Term,
+			})
+		}
+		out = append(out, &searchService.AggregationResult{
+			Field:   agg.GetField(),
+			Buckets: buckets,
+		})
+	}
+	return out
 }
 
 func (b *Backend) DocCount() (uint64, error) {
