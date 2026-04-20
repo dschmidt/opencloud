@@ -1,0 +1,86 @@
+{
+  "settings": {
+    "number_of_shards": "1",
+    "number_of_replicas": "1",
+    "analysis": {
+      "analyzer": {
+        "path_hierarchy": {
+          "filter": [
+            "lowercase"
+          ],
+          "tokenizer": "path_hierarchy",
+          "type": "custom"
+        }
+      },
+      "tokenizer": {
+        "path_hierarchy": {
+          "type": "path_hierarchy"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "Content": {
+        "type": "text",
+        "term_vector": "with_positions_offsets"
+      },
+      "ID": {
+        "type": "keyword"
+      },
+      "ParentID": {
+        "type": "keyword"
+      },
+      "RootID": {
+        "type": "keyword"
+      },
+      "MimeType": {
+        "type": "wildcard",
+        "doc_values": true
+      },
+      "Path": {
+        "type": "text",
+        "analyzer": "path_hierarchy"
+      },
+      "Deleted": {
+        "type": "boolean"
+      },
+      "Hidden": {
+        "type": "boolean"
+      },
+      "Favorites": {
+        "type": "keyword"
+      },
+      "Tags": {
+        "type": "keyword"
+      },
+      "Name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 1024
+          }
+        }
+      },
+      "audio": {
+        "properties": {
+          "album":       {"type": "keyword"},
+          "albumArtist": {"type": "keyword"},
+          "artist":      {"type": "keyword"},
+          "composers":   {"type": "keyword"},
+          "copyright":   {"type": "keyword"},
+          "genre":       {"type": "keyword"},
+          "title":       {"type": "keyword"}
+        }
+      },
+      "photo": {
+        "properties": {
+          "cameraMake":    {"type": "keyword"},
+          "cameraModel":   {"type": "keyword"},
+          "takenDateTime": {"type": "date"}
+        }
+      }
+    }
+  }
+}
