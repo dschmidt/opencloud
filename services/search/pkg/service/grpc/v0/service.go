@@ -20,6 +20,7 @@ import (
 	merrors "go-micro.dev/v4/errors"
 	"go-micro.dev/v4/metadata"
 	grpcmetadata "google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/opencloud-eu/opencloud/pkg/log"
 	v0 "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/messages/search/v0"
@@ -91,14 +92,15 @@ func (s Service) Search(ctx context.Context, in *searchsvc.SearchRequest, out *s
 	}
 	ctx = revactx.ContextSetUser(ctx, u)
 
-	key := cacheKey(in.Query, in.PageSize, in.Ref, u)
+	key := cacheKey(in.Query, in.PageSize, in.Ref, u, in.Aggregations)
 	res, ok := s.FromCache(key)
 	if !ok {
 		var err error
 		res, err = s.searcher.Search(ctx, &searchsvc.SearchRequest{
-			Query:    in.Query,
-			PageSize: in.PageSize,
-			Ref:      in.Ref,
+			Query:        in.Query,
+			PageSize:     in.PageSize,
+			Ref:          in.Ref,
+			Aggregations: in.Aggregations,
 		})
 		if err != nil {
 			switch err.(type) {
@@ -115,6 +117,7 @@ func (s Service) Search(ctx context.Context, in *searchsvc.SearchRequest, out *s
 	out.Matches = res.Matches
 	out.TotalMatches = res.TotalMatches
 	out.NextPageToken = res.NextPageToken
+	out.Aggregations = res.Aggregations
 	return nil
 }
 
@@ -170,6 +173,24 @@ func (s Service) Cache(key string, res *searchsvc.SearchResponse) {
 	_ = s.cache.Set(key, res)
 }
 
-func cacheKey(query string, pagesize int32, ref *v0.Reference, user *user.User) string {
-	return fmt.Sprintf("%s|%d|%s$%s!%s/%s|%s", query, pagesize, ref.GetResourceId().GetStorageId(), ref.GetResourceId().GetSpaceId(), ref.GetResourceId().GetOpaqueId(), ref.GetPath(), user.GetId().GetOpaqueId())
+// cacheKey builds the cache identity for a search. Every request field that
+// changes the result must end up in the key — including aggregations, which
+// are serialised via deterministic proto marshalling.
+//
+// CAREFUL: proto.Marshal with Deterministic=true produces stable bytes for
+// the current SearchRequest shape (scalar + nested message fields). If the
+// aggregation proto ever grows a `map<...>` field, determinism only holds
+// when *all writers* also set that option — otherwise two semantically equal
+// requests may hash to different keys and silently skip the cache. Likewise,
+// any new request field that affects the result must be added here.
+func cacheKey(query string, pagesize int32, ref *v0.Reference, user *user.User, aggs []*searchsvc.AggregationOption) string {
+	aggPart := ""
+	if len(aggs) > 0 {
+		b, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&searchsvc.SearchRequest{Aggregations: aggs})
+		aggPart = string(b)
+	}
+	return fmt.Sprintf("%s|%d|%s$%s!%s/%s|%s|%s",
+		query, pagesize,
+		ref.GetResourceId().GetStorageId(), ref.GetResourceId().GetSpaceId(), ref.GetResourceId().GetOpaqueId(),
+		ref.GetPath(), user.GetId().GetOpaqueId(), aggPart)
 }
