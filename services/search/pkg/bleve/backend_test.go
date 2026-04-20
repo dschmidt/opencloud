@@ -3,8 +3,10 @@ package bleve_test
 import (
 	"context"
 	"fmt"
+	"os"
 
 	bleveSearch "github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/index/scorch"
 	sprovider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -62,7 +64,10 @@ var _ = Describe("Bleve", func() {
 		mapping, err := bleve.NewMapping()
 		Expect(err).ToNot(HaveOccurred())
 
-		idx, err = bleveSearch.NewMemOnly(mapping)
+		tmpDir, err := os.MkdirTemp("", "bleve-test-")
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(os.RemoveAll, tmpDir)
+		idx, err = bleveSearch.NewUsing(tmpDir, mapping, scorch.Name, bleveSearch.Config.DefaultKVStore, nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		eng = bleve.NewBackend(idx, bleveQuery.DefaultCreator, log.Logger{})
@@ -706,6 +711,89 @@ var _ = Describe("Bleve", func() {
 				Expect(location.Latitude).To(Equal(libregraph.PtrFloat64(49.48675890884328)))
 				Expect(location.Longitude).To(Equal(libregraph.PtrFloat64(11.103870357204285)))
 			})
+		})
+	})
+
+	Describe("Aggregations", func() {
+		upsertAudio := func(id, name, artist, album, title string) {
+			r := search.Resource{
+				ID:       id,
+				ParentID: rootResource.ID,
+				RootID:   rootResource.ID,
+				Path:     "./" + name,
+				Type:     uint64(sprovider.ResourceType_RESOURCE_TYPE_FILE),
+				Document: content.Document{
+					Name:     name,
+					MimeType: "audio/mpeg",
+					Audio: &libregraph.Audio{
+						Artist: libregraph.PtrString(artist),
+						Album:  libregraph.PtrString(album),
+						Title:  libregraph.PtrString(title),
+					},
+				},
+			}
+			Expect(eng.Upsert(r.ID, r)).To(Succeed())
+		}
+
+		searchWithAggs := func(query string, aggs ...*searchsvc.AggregationOption) *searchsvc.SearchIndexResponse {
+			rID, err := storagespace.ParseID(rootResource.ID)
+			Expect(err).ToNot(HaveOccurred())
+			res, err := eng.Search(context.Background(), &searchsvc.SearchIndexRequest{
+				Query: query,
+				Ref: &searchmsg.Reference{
+					ResourceId: &searchmsg.ResourceID{
+						StorageId: rID.StorageId,
+						SpaceId:   rID.SpaceId,
+						OpaqueId:  rID.OpaqueId,
+					},
+				},
+				Aggregations: aggs,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			return res
+		}
+
+		BeforeEach(func() {
+			Expect(eng.Upsert(rootResource.ID, rootResource)).To(Succeed())
+			upsertAudio("1$2!1001", "a.mp3", "Pink Floyd", "The Wall", "Brick")
+			upsertAudio("1$2!1002", "b.mp3", "Pink Floyd", "The Wall", "Comfortably Numb")
+			upsertAudio("1$2!1003", "c.mp3", "Motörhead", "Bomber", "Bomber")
+			upsertAudio("1$2!1004", "d.mp3", "Motörhead", "Bomber", "Stone Dead Forever")
+			upsertAudio("1$2!1005", "e.mp3", "Motörhead", "Ace of Spades", "Ace of Spades")
+		})
+
+		It("returns term buckets on audio.artist", func() {
+			res := searchWithAggs("mediatype:audio", &searchsvc.AggregationOption{
+				Field: "audio.artist",
+				Size:  10,
+			})
+			Expect(res.Aggregations).To(HaveLen(1))
+			agg := res.Aggregations[0]
+			Expect(agg.Field).To(Equal("audio.artist"))
+
+			counts := map[string]int64{}
+			for _, b := range agg.Buckets {
+				counts[b.Key] = b.Count
+			}
+			Expect(counts).To(HaveKeyWithValue("Pink Floyd", int64(2)))
+			Expect(counts).To(HaveKeyWithValue("Motörhead", int64(3)))
+		})
+
+		It("returns nil aggregations when none are requested", func() {
+			res := searchWithAggs("mediatype:audio")
+			Expect(res.Aggregations).To(BeNil())
+		})
+
+		It("handles multiple aggregations in one request", func() {
+			res := searchWithAggs("mediatype:audio",
+				&searchsvc.AggregationOption{Field: "audio.artist"},
+				&searchsvc.AggregationOption{Field: "audio.album"},
+			)
+			fields := []string{}
+			for _, a := range res.Aggregations {
+				fields = append(fields, a.Field)
+			}
+			Expect(fields).To(ConsistOf("audio.artist", "audio.album"))
 		})
 	})
 })

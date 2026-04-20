@@ -206,6 +206,90 @@ var _ = Describe("Searchprovider", func() {
 				Expect(match.Entity.Ref.ResourceId.OpaqueId).To(Equal(personalSpace.Root.OpaqueId))
 				Expect(match.Entity.Ref.Path).To(Equal("./path/to/Foo.pdf"))
 			})
+
+			It("forwards aggregations to the engine", func() {
+				_, err := s.Search(ctx, &searchsvc.SearchRequest{
+					Query: "foo",
+					Aggregations: []*searchsvc.AggregationOption{
+						{Field: "audio.artist", Size: 10},
+					},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				indexClient.AssertCalled(GinkgoT(), "Search", mock.Anything, mock.MatchedBy(func(req *searchsvc.SearchIndexRequest) bool {
+					return len(req.Aggregations) == 1 &&
+						req.Aggregations[0].Field == "audio.artist" &&
+						req.Aggregations[0].Size == 10
+				}))
+			})
+		})
+
+		Context("with two personal spaces returning aggregations", func() {
+			var (
+				spaceA = &sprovider.StorageSpace{
+					Id:        &sprovider.StorageSpaceId{OpaqueId: "storageid$a!a"},
+					Root:      &sprovider.ResourceId{StorageId: "storageid", SpaceId: "a", OpaqueId: "a"},
+					Name:      "space-a",
+					SpaceType: "personal",
+				}
+				spaceB = &sprovider.StorageSpace{
+					Id:        &sprovider.StorageSpaceId{OpaqueId: "storageid$b!b"},
+					Root:      &sprovider.ResourceId{StorageId: "storageid", SpaceId: "b", OpaqueId: "b"},
+					Name:      "space-b",
+					SpaceType: "personal",
+				}
+			)
+
+			BeforeEach(func() {
+				gatewayClient.On("ListStorageSpaces", mock.Anything, mock.Anything).Return(&sprovider.ListStorageSpacesResponse{
+					Status:        status.NewOK(ctx),
+					StorageSpaces: []*sprovider.StorageSpace{spaceA, spaceB},
+				}, nil)
+				indexClient.On("Search", mock.Anything, mock.MatchedBy(func(req *searchsvc.SearchIndexRequest) bool {
+					return req.Ref != nil && req.Ref.ResourceId.SpaceId == "a"
+				})).Return(&searchsvc.SearchIndexResponse{
+					TotalMatches: 2,
+					Aggregations: []*searchsvc.AggregationResult{{
+						Field: "audio.artist",
+						Buckets: []*searchsvc.Bucket{
+							{Key: "Pink Floyd", Count: 2, AggregationFilterToken: "Pink Floyd"},
+							{Key: "Motörhead", Count: 1, AggregationFilterToken: "Motörhead"},
+						},
+					}},
+				}, nil)
+				indexClient.On("Search", mock.Anything, mock.MatchedBy(func(req *searchsvc.SearchIndexRequest) bool {
+					return req.Ref != nil && req.Ref.ResourceId.SpaceId == "b"
+				})).Return(&searchsvc.SearchIndexResponse{
+					TotalMatches: 3,
+					Aggregations: []*searchsvc.AggregationResult{{
+						Field: "audio.artist",
+						Buckets: []*searchsvc.Bucket{
+							{Key: "Pink Floyd", Count: 3, AggregationFilterToken: "Pink Floyd"},
+							{Key: "Led Zeppelin", Count: 1, AggregationFilterToken: "Led Zeppelin"},
+						},
+					}},
+				}, nil)
+			})
+
+			It("merges bucket counts across spaces", func() {
+				res, err := s.Search(ctx, &searchsvc.SearchRequest{
+					Query: "mediatype:audio",
+					Aggregations: []*searchsvc.AggregationOption{
+						{Field: "audio.artist", Size: 10},
+					},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.Aggregations).To(HaveLen(1))
+				agg := res.Aggregations[0]
+				Expect(agg.Field).To(Equal("audio.artist"))
+
+				counts := map[string]int64{}
+				for _, b := range agg.Buckets {
+					counts[b.Key] = b.Count
+				}
+				Expect(counts).To(HaveKeyWithValue("Pink Floyd", int64(5)))
+				Expect(counts).To(HaveKeyWithValue("Motörhead", int64(1)))
+				Expect(counts).To(HaveKeyWithValue("Led Zeppelin", int64(1)))
+			})
 		})
 
 		Context("with a personal space with a filter", func() {
