@@ -2704,9 +2704,25 @@ def genericBuildArtifactCache(ctx, name, action, path):
     return []
 
 def restoreBuildArtifactCache(ctx, name, path):
+    guard = {
+        "name": "guard-restore-cache-%s" % name,
+        "image": "alpine",
+        "commands": [
+            ". ./.woodpecker.env",
+            '[ "$SKIP_WORKFLOW" = "true" ] && exit 0',
+        ],
+    }
     return [genericBuildArtifactCache(ctx, name, "restore", path)]
 
 def rebuildBuildArtifactCache(ctx, name, path):
+    guard = {
+        "name": "guard-rebuild-cache-%s" % name,
+        "image": "alpine",
+        "commands": [
+            ". ./.woodpecker.env",
+            '[ "$SKIP_WORKFLOW" = "true" ] && exit 0',
+        ],
+    }
     return [genericBuildArtifactCache(ctx, name, "rebuild", path)]
 
 def purgeBuildArtifactCache(ctx):

@@ -13,6 +13,8 @@ function getSkipPatterns(type) {
     "CONTRIBUTING.md",
     "LICENSE",
     "README.md",
+    "tests/config/woodpecker/skip_if_unchanged.js",
+    ".woodpecker.star",
   ];
 
   const unit = ["**/*_test.go"];
