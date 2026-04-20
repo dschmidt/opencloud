@@ -141,6 +141,9 @@ Class | Method | HTTP request | Description
 *GroupApi* | [**UpdateGroup**](docs/GroupApi.md#updategroup) | **Patch** /v1.0/groups/{group-id} | Update entity in groups
 *GroupsApi* | [**CreateGroup**](docs/GroupsApi.md#creategroup) | **Post** /v1.0/groups | Add new entity to groups
 *GroupsApi* | [**ListGroups**](docs/GroupsApi.md#listgroups) | **Get** /v1.0/groups | Get entities from groups
+*InvitationsApi* | [**CreateInvitation**](docs/InvitationsApi.md#createinvitation) | **Post** /v1.0/invitations | Create a new invitation
+*InvitationsApi* | [**GetInvitation**](docs/InvitationsApi.md#getinvitation) | **Get** /v1.0/invitations/{invitation-id} | Get an invitation by key
+*InvitationsApi* | [**ListInvitations**](docs/InvitationsApi.md#listinvitations) | **Get** /v1.0/invitations | Get a list of invitations
 *MeChangepasswordApi* | [**ChangeOwnPassword**](docs/MeChangepasswordApi.md#changeownpassword) | **Post** /v1.0/me/changePassword | Change your own password
 *MeDriveApi* | [**FollowDriveItem**](docs/MeDriveApi.md#followdriveitem) | **Post** /v1.0/me/drive/items/{item-id}/follow | Follow a DriveItem
 *MeDriveApi* | [**GetHome**](docs/MeDriveApi.md#gethome) | **Get** /v1.0/me/drive | Get personal space for user
@@ -159,6 +162,7 @@ Class | Method | HTTP request | Description
 *MeUserApi* | [**UpdateOwnUser**](docs/MeUserApi.md#updateownuser) | **Patch** /v1.0/me | Update the current user
 *RoleManagementApi* | [**GetPermissionRoleDefinition**](docs/RoleManagementApi.md#getpermissionroledefinition) | **Get** /v1beta1/roleManagement/permissions/roleDefinitions/{role-id} | Get unifiedRoleDefinition
 *RoleManagementApi* | [**ListPermissionRoleDefinitions**](docs/RoleManagementApi.md#listpermissionroledefinitions) | **Get** /v1beta1/roleManagement/permissions/roleDefinitions | List roleDefinitions
+*SearchApi* | [**SearchQuery**](docs/SearchApi.md#searchquery) | **Post** /v1beta1/search/query | Search for resources
 *TagsApi* | [**AssignTags**](docs/TagsApi.md#assigntags) | **Put** /v1.0/extensions/org.libregraph/tags | Assign tags to a resource
 *TagsApi* | [**GetTags**](docs/TagsApi.md#gettags) | **Get** /v1.0/extensions/org.libregraph/tags | Get all known tags
 *TagsApi* | [**UnassignTags**](docs/TagsApi.md#unassigntags) | **Delete** /v1.0/extensions/org.libregraph/tags | Unassign tags from a resource
@@ -179,10 +183,13 @@ Class | Method | HTTP request | Description
  - [Activity](docs/Activity.md)
  - [ActivityTemplate](docs/ActivityTemplate.md)
  - [ActivityTimes](docs/ActivityTimes.md)
+ - [AggregationOption](docs/AggregationOption.md)
  - [AppRole](docs/AppRole.md)
  - [AppRoleAssignment](docs/AppRoleAssignment.md)
  - [Application](docs/Application.md)
  - [Audio](docs/Audio.md)
+ - [BucketAggregationRange](docs/BucketAggregationRange.md)
+ - [BucketDefinition](docs/BucketDefinition.md)
  - [ClassMemberReference](docs/ClassMemberReference.md)
  - [ClassReference](docs/ClassReference.md)
  - [ClassTeacherReference](docs/ClassTeacherReference.md)
@@ -197,6 +204,7 @@ Class | Method | HTTP request | Description
  - [CollectionOfEducationClass](docs/CollectionOfEducationClass.md)
  - [CollectionOfEducationUser](docs/CollectionOfEducationUser.md)
  - [CollectionOfGroup](docs/CollectionOfGroup.md)
+ - [CollectionOfInvitations](docs/CollectionOfInvitations.md)
  - [CollectionOfPermissions](docs/CollectionOfPermissions.md)
  - [CollectionOfPermissionsWithAllowedValues](docs/CollectionOfPermissionsWithAllowedValues.md)
  - [CollectionOfSchools](docs/CollectionOfSchools.md)
@@ -214,6 +222,7 @@ Class | Method | HTTP request | Description
  - [EducationSchool](docs/EducationSchool.md)
  - [EducationUser](docs/EducationUser.md)
  - [EducationUserReference](docs/EducationUserReference.md)
+ - [EmailAddress](docs/EmailAddress.md)
  - [ExportPersonalDataRequest](docs/ExportPersonalDataRequest.md)
  - [FileSystemInfo](docs/FileSystemInfo.md)
  - [Folder](docs/Folder.md)
@@ -224,6 +233,8 @@ Class | Method | HTTP request | Description
  - [Identity](docs/Identity.md)
  - [IdentitySet](docs/IdentitySet.md)
  - [Image](docs/Image.md)
+ - [Invitation](docs/Invitation.md)
+ - [InvitedUserMessageInfo](docs/InvitedUserMessageInfo.md)
  - [ItemReference](docs/ItemReference.md)
  - [MemberReference](docs/MemberReference.md)
  - [ObjectIdentity](docs/ObjectIdentity.md)
@@ -236,7 +247,17 @@ Class | Method | HTTP request | Description
  - [Permission](docs/Permission.md)
  - [Photo](docs/Photo.md)
  - [Quota](docs/Quota.md)
+ - [Recipient](docs/Recipient.md)
  - [RemoteItem](docs/RemoteItem.md)
+ - [SearchAggregation](docs/SearchAggregation.md)
+ - [SearchBucket](docs/SearchBucket.md)
+ - [SearchHit](docs/SearchHit.md)
+ - [SearchHitsContainer](docs/SearchHitsContainer.md)
+ - [SearchQuery](docs/SearchQuery.md)
+ - [SearchQuery200Response](docs/SearchQuery200Response.md)
+ - [SearchQueryRequest](docs/SearchQueryRequest.md)
+ - [SearchRequest](docs/SearchRequest.md)
+ - [SearchResponse](docs/SearchResponse.md)
  - [SharePointIdentitySet](docs/SharePointIdentitySet.md)
  - [SharingInvitation](docs/SharingInvitation.md)
  - [SharingLink](docs/SharingLink.md)
