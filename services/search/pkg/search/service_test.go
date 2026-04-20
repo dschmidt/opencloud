@@ -290,6 +290,75 @@ var _ = Describe("Searchprovider", func() {
 				Expect(counts).To(HaveKeyWithValue("Motörhead", int64(1)))
 				Expect(counts).To(HaveKeyWithValue("Led Zeppelin", int64(1)))
 			})
+
+			It("sorts buckets by count descending by default", func() {
+				res, err := s.Search(ctx, &searchsvc.SearchRequest{
+					Query: "mediatype:audio",
+					Aggregations: []*searchsvc.AggregationOption{
+						{Field: "audio.artist"},
+					},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				keys := []string{}
+				for _, b := range res.Aggregations[0].Buckets {
+					keys = append(keys, b.Key)
+				}
+				// Pink Floyd:5, Motörhead:1, Led Zeppelin:1 — count desc
+				Expect(keys[0]).To(Equal("Pink Floyd"))
+			})
+
+			It("sorts buckets alphabetically ascending with sortBy keyAsString", func() {
+				res, err := s.Search(ctx, &searchsvc.SearchRequest{
+					Query: "mediatype:audio",
+					Aggregations: []*searchsvc.AggregationOption{
+						{
+							Field: "audio.artist",
+							BucketDefinition: &searchsvc.BucketDefinition{
+								SortBy: "keyAsString",
+							},
+						},
+					},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				keys := []string{}
+				for _, b := range res.Aggregations[0].Buckets {
+					keys = append(keys, b.Key)
+				}
+				Expect(keys).To(Equal([]string{"Led Zeppelin", "Motörhead", "Pink Floyd"}))
+			})
+
+			It("applies minimumCount filter and size cap", func() {
+				res, err := s.Search(ctx, &searchsvc.SearchRequest{
+					Query: "mediatype:audio",
+					Aggregations: []*searchsvc.AggregationOption{
+						{
+							Field: "audio.artist",
+							Size:  5,
+							BucketDefinition: &searchsvc.BucketDefinition{
+								SortBy:       "count",
+								IsDescending: true,
+								MinimumCount: 2,
+							},
+						},
+					},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				// only Pink Floyd has count >= 2
+				Expect(res.Aggregations[0].Buckets).To(HaveLen(1))
+				Expect(res.Aggregations[0].Buckets[0].Key).To(Equal("Pink Floyd"))
+			})
+
+			It("trims the bucket list to Size", func() {
+				res, err := s.Search(ctx, &searchsvc.SearchRequest{
+					Query: "mediatype:audio",
+					Aggregations: []*searchsvc.AggregationOption{
+						{Field: "audio.artist", Size: 1},
+					},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.Aggregations[0].Buckets).To(HaveLen(1))
+				Expect(res.Aggregations[0].Buckets[0].Key).To(Equal("Pink Floyd"))
+			})
 		})
 
 		Context("with a personal space with a filter", func() {

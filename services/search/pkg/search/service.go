@@ -270,7 +270,6 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 	}
 
 	mergedAggregations := map[string]map[string]*searchmsgBucket{}
-	aggOrder := []string{}
 	for _, res := range responses {
 		if res == nil {
 			continue
@@ -283,7 +282,6 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 			field := agg.GetField()
 			if _, ok := mergedAggregations[field]; !ok {
 				mergedAggregations[field] = map[string]*searchmsgBucket{}
-				aggOrder = append(aggOrder, field)
 			}
 			for _, b := range agg.GetBuckets() {
 				if existing, ok := mergedAggregations[field][b.GetKey()]; ok {
@@ -309,15 +307,17 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 		matches = matches[0:limit]
 	}
 
-	aggregations := make([]*searchsvc.AggregationResult, 0, len(aggOrder))
-	for _, field := range aggOrder {
-		buckets := make([]*searchsvc.Bucket, 0, len(mergedAggregations[field]))
-		for _, b := range mergedAggregations[field] {
+	aggregations := make([]*searchsvc.AggregationResult, 0, len(req.GetAggregations()))
+	for _, opt := range req.GetAggregations() {
+		field := opt.GetField()
+		bucketMap := mergedAggregations[field]
+		buckets := make([]*searchsvc.Bucket, 0, len(bucketMap))
+		for _, b := range bucketMap {
 			buckets = append(buckets, b)
 		}
 		aggregations = append(aggregations, &searchsvc.AggregationResult{
 			Field:   field,
-			Buckets: buckets,
+			Buckets: postProcessBuckets(buckets, opt),
 		})
 	}
 
@@ -331,6 +331,59 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 
 // searchmsgBucket is an alias to make the bucket map-of-maps easier to read.
 type searchmsgBucket = searchsvc.Bucket
+
+// postProcessBuckets applies the caller's BucketDefinition to a merged bucket
+// list: minimumCount filter, sort by sortBy (count / keyAsString / keyAsNumber)
+// with optional isDescending, and finally trims to AggregationOption.Size.
+//
+// When no BucketDefinition is provided, buckets are sorted by count descending
+// — the most useful default for term facets shown in a UI.
+func postProcessBuckets(buckets []*searchsvc.Bucket, opt *searchsvc.AggregationOption) []*searchsvc.Bucket {
+	bd := opt.GetBucketDefinition()
+	sortBy := "count"
+	desc := true
+	var minCount int64
+	if bd != nil {
+		if bd.GetSortBy() != "" {
+			sortBy = bd.GetSortBy()
+		}
+		desc = bd.GetIsDescending()
+		minCount = int64(bd.GetMinimumCount())
+	}
+
+	if minCount > 0 {
+		filtered := buckets[:0]
+		for _, b := range buckets {
+			if b.GetCount() >= minCount {
+				filtered = append(filtered, b)
+			}
+		}
+		buckets = filtered
+	}
+
+	sort.SliceStable(buckets, func(i, j int) bool {
+		less := false
+		switch sortBy {
+		case "keyAsString":
+			less = buckets[i].GetKey() < buckets[j].GetKey()
+		case "keyAsNumber":
+			iv, _ := strconv.ParseFloat(buckets[i].GetKey(), 64)
+			jv, _ := strconv.ParseFloat(buckets[j].GetKey(), 64)
+			less = iv < jv
+		default: // "count"
+			less = buckets[i].GetCount() < buckets[j].GetCount()
+		}
+		if desc {
+			return !less
+		}
+		return less
+	})
+
+	if size := opt.GetSize(); size > 0 && int32(len(buckets)) > size {
+		buckets = buckets[:size]
+	}
+	return buckets
+}
 
 func (s *Service) searchIndex(ctx context.Context, req *searchsvc.SearchRequest, space *provider.StorageSpace, mountpointID string) (*searchsvc.SearchIndexResponse, error) {
 	if req.Ref != nil &&
