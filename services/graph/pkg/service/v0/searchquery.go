@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"path"
+	"strings"
 	"time"
 
 	storageprovider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
@@ -71,8 +72,9 @@ func (g Graph) runSingleSearch(ctx context.Context, sr libregraph.SearchRequest)
 	}
 
 	rsp, err := g.searchService.Search(ctx, &searchsvc.SearchRequest{
-		Query:    sr.Query.QueryString,
-		PageSize: pageSize,
+		Query:        applyAggregationFilters(sr.Query.QueryString, sr.AggregationFilters),
+		PageSize:     pageSize,
+		Aggregations: libregraphAggregationsToSearch(sr.Aggregations),
 	})
 	if err != nil {
 		return libregraph.SearchResponse{}, err
@@ -95,8 +97,97 @@ func (g Graph) runSingleSearch(ctx context.Context, sr libregraph.SearchRequest)
 			Hits:                 hits,
 			Total:                &total,
 			MoreResultsAvailable: &more,
+			Aggregations:         searchAggregationsToLibregraph(rsp.Aggregations),
 		}},
 	}, nil
+}
+
+// applyAggregationFilters joins the query string with the aggregation filters
+// from a previous search response. Each filter is a ready-made KQL snippet
+// like `audio.artist:"Pink Floyd"`; multiple filters are AND-combined.
+func applyAggregationFilters(q string, filters []string) string {
+	if len(filters) == 0 {
+		return q
+	}
+	parts := make([]string, 0, len(filters)+1)
+	if q != "" {
+		parts = append(parts, "("+q+")")
+	}
+	for _, f := range filters {
+		if f == "" {
+			continue
+		}
+		parts = append(parts, "("+f+")")
+	}
+	return strings.Join(parts, " AND ")
+}
+
+func libregraphAggregationsToSearch(in []libregraph.AggregationOption) []*searchsvc.AggregationOption {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*searchsvc.AggregationOption, 0, len(in))
+	for _, a := range in {
+		agg := &searchsvc.AggregationOption{Field: a.Field}
+		if a.Size != nil {
+			agg.Size = *a.Size
+		}
+		if a.BucketDefinition != nil {
+			agg.BucketDefinition = libregraphBucketDefinitionToSearch(*a.BucketDefinition)
+		}
+		out = append(out, agg)
+	}
+	return out
+}
+
+func libregraphBucketDefinitionToSearch(in libregraph.BucketDefinition) *searchsvc.BucketDefinition {
+	bd := &searchsvc.BucketDefinition{SortBy: in.SortBy}
+	if in.IsDescending != nil {
+		bd.IsDescending = *in.IsDescending
+	}
+	if in.MinimumCount != nil {
+		bd.MinimumCount = *in.MinimumCount
+	}
+	if len(in.Ranges) > 0 {
+		bd.Ranges = make([]*searchsvc.BucketRange, 0, len(in.Ranges))
+		for _, r := range in.Ranges {
+			br := &searchsvc.BucketRange{}
+			if r.From != nil {
+				br.From = *r.From
+			}
+			if r.To != nil {
+				br.To = *r.To
+			}
+			bd.Ranges = append(bd.Ranges, br)
+		}
+	}
+	return bd
+}
+
+func searchAggregationsToLibregraph(in []*searchsvc.AggregationResult) []libregraph.SearchAggregation {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]libregraph.SearchAggregation, 0, len(in))
+	for _, a := range in {
+		field := a.GetField()
+		buckets := make([]libregraph.SearchBucket, 0, len(a.GetBuckets()))
+		for _, b := range a.GetBuckets() {
+			key := b.GetKey()
+			count := b.GetCount()
+			token := b.GetAggregationFilterToken()
+			buckets = append(buckets, libregraph.SearchBucket{
+				Key:                    &key,
+				Count:                  &count,
+				AggregationFilterToken: &token,
+			})
+		}
+		out = append(out, libregraph.SearchAggregation{
+			Field:   &field,
+			Buckets: buckets,
+		})
+	}
+	return out
 }
 
 func (g Graph) renderSearchError(w http.ResponseWriter, r *http.Request, err error) {
