@@ -69,6 +69,9 @@ message SearchRequest {
 
   string query = 3;
   opencloud.messages.search.v0.Reference ref = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // Optional. Aggregations (facets) to compute alongside the matches.
+  repeated AggregationOption aggregations = 5 [(google.api.field_behavior) = OPTIONAL];
 }
 
 message SearchResponse {
@@ -78,6 +81,9 @@ message SearchResponse {
   // more results in the list
   string next_page_token = 2;
   int32 total_matches = 3;
+
+  // Aggregation results, one entry per requested aggregation.
+  repeated AggregationResult aggregations = 4;
 }
 
 message SearchIndexRequest {
@@ -90,6 +96,9 @@ message SearchIndexRequest {
 
 	string query = 3;
   opencloud.messages.search.v0.Reference ref = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // Optional. Per-space aggregations (facets) to compute alongside the matches.
+  repeated AggregationOption aggregations = 5 [(google.api.field_behavior) = OPTIONAL];
 }
 
 message SearchIndexResponse {
@@ -99,6 +108,48 @@ message SearchIndexResponse {
   // more results in the list
   string next_page_token = 2;
   int32 total_matches = 3;
+
+  // Per-space aggregation results. The service layer merges these across
+  // spaces before returning them to the caller.
+  repeated AggregationResult aggregations = 4;
+}
+
+message AggregationOption {
+  // Required. The indexed field to aggregate on.
+  string field = 1;
+  // Optional. Maximum number of buckets to return for a terms aggregation.
+  // Ignored for range aggregations.
+  int32 size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Optional. Controls bucket selection, ordering and filtering.
+  BucketDefinition bucket_definition = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+message BucketDefinition {
+  // One of "count", "keyAsString", "keyAsNumber".
+  string sort_by = 1;
+  bool is_descending = 2;
+  int32 minimum_count = 3;
+  // Optional. When non-empty, the aggregation is computed over these numeric
+  // or date ranges instead of as a terms aggregation.
+  repeated BucketRange ranges = 4;
+}
+
+message BucketRange {
+  // At least one of `from` or `to` must be set. Both are string-encoded;
+  // numeric bounds are decimal strings, dates use RFC3339.
+  string from = 1;
+  string to = 2;
+}
+
+message AggregationResult {
+  string field = 1;
+  repeated Bucket buckets = 2;
+}
+
+message Bucket {
+  string key = 1;
+  int64 count = 2;
+  string aggregation_filter_token = 3;
 }
 
 message IndexSpaceRequest {

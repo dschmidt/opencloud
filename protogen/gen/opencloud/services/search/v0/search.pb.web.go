@@ -273,6 +273,186 @@ func (m *SearchIndexResponse) UnmarshalJSON(b []byte) error {
 
 var _ json.Unmarshaler = (*SearchIndexResponse)(nil)
 
+// AggregationOptionJSONMarshaler describes the default jsonpb.Marshaler used by all
+// instances of AggregationOption. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var AggregationOptionJSONMarshaler = new(jsonpb.Marshaler)
+
+// MarshalJSON satisfies the encoding/json Marshaler interface. This method
+// uses the more correct jsonpb package to correctly marshal the message.
+func (m *AggregationOption) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return json.Marshal(nil)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := AggregationOptionJSONMarshaler.Marshal(buf, m); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var _ json.Marshaler = (*AggregationOption)(nil)
+
+// AggregationOptionJSONUnmarshaler describes the default jsonpb.Unmarshaler used by all
+// instances of AggregationOption. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var AggregationOptionJSONUnmarshaler = new(jsonpb.Unmarshaler)
+
+// UnmarshalJSON satisfies the encoding/json Unmarshaler interface. This method
+// uses the more correct jsonpb package to correctly unmarshal the message.
+func (m *AggregationOption) UnmarshalJSON(b []byte) error {
+	return AggregationOptionJSONUnmarshaler.Unmarshal(bytes.NewReader(b), m)
+}
+
+var _ json.Unmarshaler = (*AggregationOption)(nil)
+
+// BucketDefinitionJSONMarshaler describes the default jsonpb.Marshaler used by all
+// instances of BucketDefinition. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var BucketDefinitionJSONMarshaler = new(jsonpb.Marshaler)
+
+// MarshalJSON satisfies the encoding/json Marshaler interface. This method
+// uses the more correct jsonpb package to correctly marshal the message.
+func (m *BucketDefinition) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return json.Marshal(nil)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := BucketDefinitionJSONMarshaler.Marshal(buf, m); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var _ json.Marshaler = (*BucketDefinition)(nil)
+
+// BucketDefinitionJSONUnmarshaler describes the default jsonpb.Unmarshaler used by all
+// instances of BucketDefinition. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var BucketDefinitionJSONUnmarshaler = new(jsonpb.Unmarshaler)
+
+// UnmarshalJSON satisfies the encoding/json Unmarshaler interface. This method
+// uses the more correct jsonpb package to correctly unmarshal the message.
+func (m *BucketDefinition) UnmarshalJSON(b []byte) error {
+	return BucketDefinitionJSONUnmarshaler.Unmarshal(bytes.NewReader(b), m)
+}
+
+var _ json.Unmarshaler = (*BucketDefinition)(nil)
+
+// BucketRangeJSONMarshaler describes the default jsonpb.Marshaler used by all
+// instances of BucketRange. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var BucketRangeJSONMarshaler = new(jsonpb.Marshaler)
+
+// MarshalJSON satisfies the encoding/json Marshaler interface. This method
+// uses the more correct jsonpb package to correctly marshal the message.
+func (m *BucketRange) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return json.Marshal(nil)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := BucketRangeJSONMarshaler.Marshal(buf, m); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var _ json.Marshaler = (*BucketRange)(nil)
+
+// BucketRangeJSONUnmarshaler describes the default jsonpb.Unmarshaler used by all
+// instances of BucketRange. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var BucketRangeJSONUnmarshaler = new(jsonpb.Unmarshaler)
+
+// UnmarshalJSON satisfies the encoding/json Unmarshaler interface. This method
+// uses the more correct jsonpb package to correctly unmarshal the message.
+func (m *BucketRange) UnmarshalJSON(b []byte) error {
+	return BucketRangeJSONUnmarshaler.Unmarshal(bytes.NewReader(b), m)
+}
+
+var _ json.Unmarshaler = (*BucketRange)(nil)
+
+// AggregationResultJSONMarshaler describes the default jsonpb.Marshaler used by all
+// instances of AggregationResult. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var AggregationResultJSONMarshaler = new(jsonpb.Marshaler)
+
+// MarshalJSON satisfies the encoding/json Marshaler interface. This method
+// uses the more correct jsonpb package to correctly marshal the message.
+func (m *AggregationResult) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return json.Marshal(nil)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := AggregationResultJSONMarshaler.Marshal(buf, m); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var _ json.Marshaler = (*AggregationResult)(nil)
+
+// AggregationResultJSONUnmarshaler describes the default jsonpb.Unmarshaler used by all
+// instances of AggregationResult. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var AggregationResultJSONUnmarshaler = new(jsonpb.Unmarshaler)
+
+// UnmarshalJSON satisfies the encoding/json Unmarshaler interface. This method
+// uses the more correct jsonpb package to correctly unmarshal the message.
+func (m *AggregationResult) UnmarshalJSON(b []byte) error {
+	return AggregationResultJSONUnmarshaler.Unmarshal(bytes.NewReader(b), m)
+}
+
+var _ json.Unmarshaler = (*AggregationResult)(nil)
+
+// BucketJSONMarshaler describes the default jsonpb.Marshaler used by all
+// instances of Bucket. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var BucketJSONMarshaler = new(jsonpb.Marshaler)
+
+// MarshalJSON satisfies the encoding/json Marshaler interface. This method
+// uses the more correct jsonpb package to correctly marshal the message.
+func (m *Bucket) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return json.Marshal(nil)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := BucketJSONMarshaler.Marshal(buf, m); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var _ json.Marshaler = (*Bucket)(nil)
+
+// BucketJSONUnmarshaler describes the default jsonpb.Unmarshaler used by all
+// instances of Bucket. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var BucketJSONUnmarshaler = new(jsonpb.Unmarshaler)
+
+// UnmarshalJSON satisfies the encoding/json Unmarshaler interface. This method
+// uses the more correct jsonpb package to correctly unmarshal the message.
+func (m *Bucket) UnmarshalJSON(b []byte) error {
+	return BucketJSONUnmarshaler.Unmarshal(bytes.NewReader(b), m)
+}
+
+var _ json.Unmarshaler = (*Bucket)(nil)
+
 // IndexSpaceRequestJSONMarshaler describes the default jsonpb.Marshaler used by all
 // instances of IndexSpaceRequest. This struct is safe to replace or modify but
 // should not be done so concurrently.

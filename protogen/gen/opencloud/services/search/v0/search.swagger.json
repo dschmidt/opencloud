@@ -157,6 +157,38 @@
         }
       }
     },
+    "v0AggregationOption": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "Required. The indexed field to aggregate on."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Optional. Maximum number of buckets to return for a terms aggregation.\nIgnored for range aggregations."
+        },
+        "bucketDefinition": {
+          "$ref": "#/definitions/v0BucketDefinition",
+          "description": "Optional. Controls bucket selection, ordering and filtering."
+        }
+      }
+    },
+    "v0AggregationResult": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "buckets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v0Bucket"
+          }
+        }
+      }
+    },
     "v0Audio": {
       "type": "object",
       "properties": {
@@ -214,6 +246,56 @@
         "year": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "v0Bucket": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "count": {
+          "type": "string",
+          "format": "int64"
+        },
+        "aggregationFilterToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v0BucketDefinition": {
+      "type": "object",
+      "properties": {
+        "sortBy": {
+          "type": "string",
+          "description": "One of \"count\", \"keyAsString\", \"keyAsNumber\"."
+        },
+        "isDescending": {
+          "type": "boolean"
+        },
+        "minimumCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v0BucketRange"
+          },
+          "description": "Optional. When non-empty, the aggregation is computed over these numeric\nor date ranges instead of as a terms aggregation."
+        }
+      }
+    },
+    "v0BucketRange": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "At least one of `from` or `to` must be set. Both are string-encoded;\nnumeric bounds are decimal strings, dates use RFC3339."
+        },
+        "to": {
+          "type": "string"
         }
       }
     },
@@ -433,6 +515,13 @@
         },
         "ref": {
           "$ref": "#/definitions/v0Reference"
+        },
+        "aggregations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v0AggregationOption"
+          },
+          "description": "Optional. Per-space aggregations (facets) to compute alongside the matches."
         }
       }
     },
@@ -452,6 +541,13 @@
         "totalMatches": {
           "type": "integer",
           "format": "int32"
+        },
+        "aggregations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v0AggregationResult"
+          },
+          "description": "Per-space aggregation results. The service layer merges these across\nspaces before returning them to the caller."
         }
       }
     },
@@ -472,6 +568,13 @@
         },
         "ref": {
           "$ref": "#/definitions/v0Reference"
+        },
+        "aggregations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v0AggregationOption"
+          },
+          "description": "Optional. Aggregations (facets) to compute alongside the matches."
         }
       }
     },
@@ -491,6 +594,13 @@
         "totalMatches": {
           "type": "integer",
           "format": "int32"
+        },
+        "aggregations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v0AggregationResult"
+          },
+          "description": "Aggregation results, one entry per requested aggregation."
         }
       }
     }
