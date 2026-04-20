@@ -113,6 +113,31 @@ func TestSearchQueryHandlerForwardsAggregations(t *testing.T) {
 	}
 }
 
+func TestClampPagination(t *testing.T) {
+	ptr := func(v int32) *int32 { return &v }
+	cases := []struct {
+		name     string
+		from, to *int32
+		wantFrom int32
+		wantSize int32
+	}{
+		{"defaults", nil, nil, 0, 25},
+		{"zero size", ptr(5), ptr(0), 5, 0},
+		{"negative from clamps to zero", ptr(-10), ptr(5), 0, 5},
+		{"negative size clamps to zero", ptr(10), ptr(-1), 10, 0},
+		{"oversized size clamps to max", ptr(0), ptr(1000), 0, 500},
+		{"from+size overflow collapses", ptr(1<<31 - 1), ptr(500), 1<<31 - 1 - 500, 500},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotFrom, gotSize := clampPagination(c.from, c.to)
+			if gotFrom != c.wantFrom || gotSize != c.wantSize {
+				t.Fatalf("want from=%d size=%d, got from=%d size=%d", c.wantFrom, c.wantSize, gotFrom, gotSize)
+			}
+		})
+	}
+}
+
 func TestSearchQueryRejectsTermsOnNumericField(t *testing.T) {
 	stub := stubSearchService{
 		search: func(req *searchsvc.SearchRequest) (*searchsvc.SearchResponse, error) {

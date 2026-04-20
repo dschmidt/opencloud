@@ -158,10 +158,15 @@ func (b *Backend) Search(ctx context.Context, sir *searchService.SearchIndexRequ
 		matches = append(matches, match)
 	}
 
+	aggResults, err := aggs.Parse(resp.Aggregations, sir.GetAggregations())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse aggregations: %w", err)
+	}
+
 	return &searchService.SearchIndexResponse{
 		Matches:      matches,
 		TotalMatches: int32(totalMatches),
-		Aggregations: aggs.Parse(resp.Aggregations, sir.GetAggregations()),
+		Aggregations: aggResults,
 	}, nil
 }
 

@@ -63,19 +63,13 @@ func (g Graph) SearchQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g Graph) runSingleSearch(ctx context.Context, sr libregraph.SearchRequest) (libregraph.SearchResponse, error) {
-	from := int32(0)
-	if sr.From != nil {
-		from = *sr.From
-	}
-	size := int32(25)
-	if sr.Size != nil {
-		size = *sr.Size
-	}
+	from, size := clampPagination(sr.From, sr.Size)
 
 	// the gRPC layer has no dedicated `from` field — ask for `from+size` matches
-	// and slice client-side. good enough for early offsets; can be revisited when
-	// paging perf matters.
-	pageSize := from + size
+	// and slice client-side. good enough for early offsets; can be revisited
+	// when paging perf matters. int64 arithmetic prevents int32 overflow; the
+	// clamp above already caps each side to a safe range.
+	pageSize := int32(int64(from) + int64(size))
 	if size == 0 {
 		pageSize = 0
 	}
@@ -109,6 +103,41 @@ func (g Graph) runSingleSearch(ctx context.Context, sr libregraph.SearchRequest)
 			Aggregations:         searchAggregationsToLibregraph(rsp.Aggregations),
 		}},
 	}, nil
+}
+
+// maxPageSize mirrors the openapi spec's upper bound on SearchRequest.size.
+const maxPageSize = 500
+
+// clampPagination normalises the from/size pointers coming out of a JSON body
+// into a safe pair of non-negative int32s. The openapi spec declares size in
+// [0, 500] and from in [0, inf), but openapi-generator does not enforce those
+// bounds at unmarshal time — so a malicious or careless client could send
+// negative values or int32 extremes that later panic when used as slice
+// indices or overflow the computed PageSize.
+func clampPagination(fromP, sizeP *int32) (int32, int32) {
+	from := int32(0)
+	if fromP != nil && *fromP > 0 {
+		from = *fromP
+	}
+	size := int32(25)
+	if sizeP != nil {
+		size = *sizeP
+		if size < 0 {
+			size = 0
+		}
+		if size > maxPageSize {
+			size = maxPageSize
+		}
+	}
+	// from + size will be sent as a single int32 PageSize. Guard against
+	// overflow rather than relying on luck of the client-supplied `from`.
+	const maxInt32 = int32(1<<31 - 1)
+	if int64(from)+int64(size) > int64(maxInt32) {
+		if from > maxInt32-size {
+			from = maxInt32 - size
+		}
+	}
+	return from, size
 }
 
 // validateAggregations rejects requests that cannot be served consistently

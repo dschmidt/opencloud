@@ -84,7 +84,10 @@ func TestParseAggregations(t *testing.T) {
 		{Field: "audio.year"},
 		{Field: "audio.track"},
 	}
-	out := Parse(raw, opts)
+	out, err := Parse(raw, opts)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
 	if len(out) != 3 {
 		t.Fatalf("want 3 aggs, got %d", len(out))
 	}
@@ -102,10 +105,20 @@ func TestParseAggregations(t *testing.T) {
 }
 
 func TestParseAggregationsEmpty(t *testing.T) {
-	if got := Parse(nil, []*searchsvc.AggregationOption{{Field: "x"}}); got != nil {
-		t.Fatalf("want nil, got %#v", got)
+	if got, err := Parse(nil, []*searchsvc.AggregationOption{{Field: "x"}}); err != nil || got != nil {
+		t.Fatalf("want (nil, nil), got (%#v, %v)", got, err)
 	}
-	if got := Parse(json.RawMessage(`{}`), nil); got != nil {
-		t.Fatalf("want nil for empty opts, got %#v", got)
+	if got, err := Parse(json.RawMessage(`{}`), nil); err != nil || got != nil {
+		t.Fatalf("want (nil, nil) for empty opts, got (%#v, %v)", got, err)
+	}
+}
+
+func TestParseAggregationsError(t *testing.T) {
+	got, err := Parse(json.RawMessage(`not-json`), []*searchsvc.AggregationOption{{Field: "x"}})
+	if err == nil {
+		t.Fatal("want error for malformed json")
+	}
+	if got != nil {
+		t.Fatalf("want nil result on error, got %#v", got)
 	}
 }

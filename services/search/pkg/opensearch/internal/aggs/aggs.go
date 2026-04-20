@@ -6,6 +6,7 @@ package aggs
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	searchsvc "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/services/search/v0"
@@ -83,9 +84,14 @@ func RangeKey(r *searchsvc.BucketRange) string {
 // Parse reads the `aggregations` block on an OpenSearch search response and
 // converts it into the proto representation. It preserves the order of the
 // original request's AggregationOptions.
-func Parse(raw json.RawMessage, opts []*searchsvc.AggregationOption) []*searchsvc.AggregationResult {
+//
+// Returns an error when the response block is syntactically invalid — the
+// caller is expected to log and either surface or swallow the failure.
+// Empty input is not an error: (nil, nil) is returned when no aggregations
+// were asked for or OpenSearch did not include a block.
+func Parse(raw json.RawMessage, opts []*searchsvc.AggregationOption) ([]*searchsvc.AggregationResult, error) {
 	if len(raw) == 0 || len(opts) == 0 {
-		return nil
+		return nil, nil
 	}
 	var byField map[string]struct {
 		Buckets []struct {
@@ -94,7 +100,7 @@ func Parse(raw json.RawMessage, opts []*searchsvc.AggregationOption) []*searchsv
 		} `json:"buckets"`
 	}
 	if err := json.Unmarshal(raw, &byField); err != nil {
-		return nil
+		return nil, fmt.Errorf("decode opensearch aggregations: %w", err)
 	}
 	out := make([]*searchsvc.AggregationResult, 0, len(opts))
 	for _, opt := range opts {
@@ -115,7 +121,7 @@ func Parse(raw json.RawMessage, opts []*searchsvc.AggregationOption) []*searchsv
 			Buckets: buckets,
 		})
 	}
-	return out
+	return out, nil
 }
 
 // bucketKeyToString normalises the OpenSearch response key to a string. Term
