@@ -795,5 +795,79 @@ var _ = Describe("Bleve", func() {
 			}
 			Expect(fields).To(ConsistOf("audio.artist", "audio.album"))
 		})
+
+		Describe("numeric range aggregations", func() {
+			upsertWithYear := func(id, name string, year int32) {
+				r := search.Resource{
+					ID:       id,
+					ParentID: rootResource.ID,
+					RootID:   rootResource.ID,
+					Path:     "./" + name,
+					Type:     uint64(sprovider.ResourceType_RESOURCE_TYPE_FILE),
+					Document: content.Document{
+						Name:     name,
+						MimeType: "audio/mpeg",
+						Audio:    &libregraph.Audio{Year: libregraph.PtrInt32(year)},
+					},
+				}
+				Expect(eng.Upsert(r.ID, r)).To(Succeed())
+			}
+
+			BeforeEach(func() {
+				upsertWithYear("1$2!2001", "70a.mp3", 1971)
+				upsertWithYear("1$2!2002", "70b.mp3", 1975)
+				upsertWithYear("1$2!2003", "80a.mp3", 1982)
+				upsertWithYear("1$2!2004", "90a.mp3", 1999)
+				upsertWithYear("1$2!2005", "00a.mp3", 2001)
+				upsertWithYear("1$2!2006", "00b.mp3", 2005)
+				upsertWithYear("1$2!2007", "00c.mp3", 2009)
+			})
+
+			It("returns buckets per decade range", func() {
+				res := searchWithAggs("mediatype:audio",
+					&searchsvc.AggregationOption{
+						Field: "audio.year",
+						BucketDefinition: &searchsvc.BucketDefinition{
+							Ranges: []*searchsvc.BucketRange{
+								{From: "1970", To: "1980"},
+								{From: "1980", To: "1990"},
+								{From: "1990", To: "2000"},
+								{From: "2000", To: "2010"},
+							},
+						},
+					},
+				)
+				Expect(res.Aggregations).To(HaveLen(1))
+				counts := map[string]int64{}
+				for _, b := range res.Aggregations[0].Buckets {
+					counts[b.Key] = b.Count
+				}
+				Expect(counts).To(HaveKeyWithValue("1970-1980", int64(2)))
+				Expect(counts).To(HaveKeyWithValue("1980-1990", int64(1)))
+				Expect(counts).To(HaveKeyWithValue("1990-2000", int64(1)))
+				Expect(counts).To(HaveKeyWithValue("2000-2010", int64(3)))
+			})
+
+			It("supports open-ended ranges", func() {
+				res := searchWithAggs("mediatype:audio",
+					&searchsvc.AggregationOption{
+						Field: "audio.year",
+						BucketDefinition: &searchsvc.BucketDefinition{
+							Ranges: []*searchsvc.BucketRange{
+								{To: "1990"},
+								{From: "2000"},
+							},
+						},
+					},
+				)
+				Expect(res.Aggregations).To(HaveLen(1))
+				counts := map[string]int64{}
+				for _, b := range res.Aggregations[0].Buckets {
+					counts[b.Key] = b.Count
+				}
+				Expect(counts).To(HaveKeyWithValue("-1990", int64(3)))
+				Expect(counts).To(HaveKeyWithValue("2000-", int64(3)))
+			})
+		})
 	})
 })

@@ -3,6 +3,7 @@ package bleve
 import (
 	"context"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -171,7 +172,13 @@ func newBleveFacetRequest(agg *searchService.AggregationOption) *bleve.FacetRequ
 	if size <= 0 {
 		size = defaultFacetSize
 	}
-	return bleve.NewFacetRequest(agg.GetField(), size)
+	fr := bleve.NewFacetRequest(agg.GetField(), size)
+	for _, r := range aggregationRanges(agg) {
+		minP := parseFloatPtr(r.GetFrom())
+		maxP := parseFloatPtr(r.GetTo())
+		fr.AddNumericRange(rangeBucketKey(r), minP, maxP)
+	}
+	return fr
 }
 
 func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.AggregationOption) []*searchService.AggregationResult {
@@ -185,12 +192,22 @@ func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.Agg
 			continue
 		}
 		buckets := make([]*searchService.Bucket, 0)
-		for _, t := range fr.Terms.Terms() {
-			buckets = append(buckets, &searchService.Bucket{
-				Key:                    t.Term,
-				Count:                  int64(t.Count),
-				AggregationFilterToken: t.Term,
-			})
+		if len(aggregationRanges(agg)) > 0 {
+			for _, nr := range fr.NumericRanges {
+				buckets = append(buckets, &searchService.Bucket{
+					Key:                    nr.Name,
+					Count:                  int64(nr.Count),
+					AggregationFilterToken: nr.Name,
+				})
+			}
+		} else {
+			for _, t := range fr.Terms.Terms() {
+				buckets = append(buckets, &searchService.Bucket{
+					Key:                    t.Term,
+					Count:                  int64(t.Count),
+					AggregationFilterToken: t.Term,
+				})
+			}
 		}
 		out = append(out, &searchService.AggregationResult{
 			Field:   agg.GetField(),
@@ -198,6 +215,32 @@ func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.Agg
 		})
 	}
 	return out
+}
+
+func aggregationRanges(agg *searchService.AggregationOption) []*searchService.BucketRange {
+	bd := agg.GetBucketDefinition()
+	if bd == nil {
+		return nil
+	}
+	return bd.GetRanges()
+}
+
+// rangeBucketKey formats a numeric/date range as a single string of the form
+// "from-to" so that the service-layer merge can key by it and the response
+// carries a stable identifier. Open-ended sides render as "-N" or "N-".
+func rangeBucketKey(r *searchService.BucketRange) string {
+	return r.GetFrom() + "-" + r.GetTo()
+}
+
+func parseFloatPtr(s string) *float64 {
+	if s == "" {
+		return nil
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil
+	}
+	return &v
 }
 
 func (b *Backend) DocCount() (uint64, error) {
