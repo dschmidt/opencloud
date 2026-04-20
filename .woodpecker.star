@@ -2712,7 +2712,7 @@ def restoreBuildArtifactCache(ctx, name, path):
             '[ "$SKIP_WORKFLOW" = "true" ] && exit 0',
         ],
     }
-    return [genericBuildArtifactCache(ctx, name, "restore", path)]
+    return [guard, genericBuildArtifactCache(ctx, name, "restore", path)]
 
 def rebuildBuildArtifactCache(ctx, name, path):
     guard = {
@@ -2723,7 +2723,7 @@ def rebuildBuildArtifactCache(ctx, name, path):
             '[ "$SKIP_WORKFLOW" = "true" ] && exit 0',
         ],
     }
-    return [genericBuildArtifactCache(ctx, name, "rebuild", path)]
+    return [guard, genericBuildArtifactCache(ctx, name, "rebuild", path)]
 
 def purgeBuildArtifactCache(ctx):
     return genericBuildArtifactCache(ctx, "", "purge", [])
