@@ -289,9 +289,8 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 					continue
 				}
 				mergedAggregations[field][b.GetKey()] = &searchsvc.Bucket{
-					Key:                    b.GetKey(),
-					Count:                  b.GetCount(),
-					AggregationFilterToken: b.GetAggregationFilterToken(),
+					Key:   b.GetKey(),
+					Count: b.GetCount(),
 				}
 			}
 		}

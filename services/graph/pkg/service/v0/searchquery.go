@@ -175,11 +175,15 @@ func searchAggregationsToLibregraph(in []*searchsvc.AggregationResult) []libregr
 		for _, b := range a.GetBuckets() {
 			key := b.GetKey()
 			count := b.GetCount()
-			token := b.GetAggregationFilterToken()
+			// aggregationFilterToken intentionally left unset: the MS Graph
+			// round-trip ("use this token in a subsequent aggregationFilters")
+			// would require opaque server-side tokens to stay correct for
+			// values containing KQL specials, empty strings or range buckets.
+			// Returning broken tokens is worse than returning none, so until
+			// we wire up proper opaque-token encoding the field stays empty.
 			buckets = append(buckets, libregraph.SearchBucket{
-				Key:                    &key,
-				Count:                  &count,
-				AggregationFilterToken: &token,
+				Key:   &key,
+				Count: &count,
 			})
 		}
 		out = append(out, libregraph.SearchAggregation{

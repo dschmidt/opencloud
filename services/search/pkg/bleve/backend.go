@@ -195,17 +195,15 @@ func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.Agg
 		if len(aggregationRanges(agg)) > 0 {
 			for _, nr := range fr.NumericRanges {
 				buckets = append(buckets, &searchService.Bucket{
-					Key:                    nr.Name,
-					Count:                  int64(nr.Count),
-					AggregationFilterToken: nr.Name,
+					Key:   nr.Name,
+					Count: int64(nr.Count),
 				})
 			}
 		} else {
 			for _, t := range fr.Terms.Terms() {
 				buckets = append(buckets, &searchService.Bucket{
-					Key:                    t.Term,
-					Count:                  int64(t.Count),
-					AggregationFilterToken: t.Term,
+					Key:   t.Term,
+					Count: int64(t.Count),
 				})
 			}
 		}

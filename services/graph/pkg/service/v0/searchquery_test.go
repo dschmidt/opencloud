@@ -36,8 +36,8 @@ func TestSearchQueryHandlerForwardsAggregations(t *testing.T) {
 				Aggregations: []*searchsvc.AggregationResult{{
 					Field: "audio.artist",
 					Buckets: []*searchsvc.Bucket{
-						{Key: "Pink Floyd", Count: 7, AggregationFilterToken: "Pink Floyd"},
-						{Key: "Motörhead", Count: 3, AggregationFilterToken: "Motörhead"},
+						{Key: "Pink Floyd", Count: 7},
+						{Key: "Motörhead", Count: 3},
 					},
 				}},
 			}, nil

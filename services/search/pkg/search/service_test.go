@@ -251,8 +251,8 @@ var _ = Describe("Searchprovider", func() {
 					Aggregations: []*searchsvc.AggregationResult{{
 						Field: "audio.artist",
 						Buckets: []*searchsvc.Bucket{
-							{Key: "Pink Floyd", Count: 2, AggregationFilterToken: "Pink Floyd"},
-							{Key: "Motörhead", Count: 1, AggregationFilterToken: "Motörhead"},
+							{Key: "Pink Floyd", Count: 2},
+							{Key: "Motörhead", Count: 1},
 						},
 					}},
 				}, nil)
@@ -263,8 +263,8 @@ var _ = Describe("Searchprovider", func() {
 					Aggregations: []*searchsvc.AggregationResult{{
 						Field: "audio.artist",
 						Buckets: []*searchsvc.Bucket{
-							{Key: "Pink Floyd", Count: 3, AggregationFilterToken: "Pink Floyd"},
-							{Key: "Led Zeppelin", Count: 1, AggregationFilterToken: "Led Zeppelin"},
+							{Key: "Pink Floyd", Count: 3},
+							{Key: "Led Zeppelin", Count: 1},
 						},
 					}},
 				}, nil)
