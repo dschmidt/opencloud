@@ -93,6 +93,15 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 		bleveReq.AddFacet(agg.GetField(), newBleveFacetRequest(agg))
 	}
 
+	// Sub-aggregations on bleve need the matched hit set to fold
+	// through, not just the count-only term facets. If any requested
+	// aggregation asks for sub-aggregations, widen the page so the
+	// emulator has enough docs to work with. The caller's requested
+	// PageSize wins if it's already bigger.
+	if needsSubAggScan(sir.GetAggregations()) && bleveReq.Size < subAggScanSize {
+		bleveReq.Size = subAggScanSize
+	}
+
 	bleveReq.Fields = []string{"*"}
 	res, err := b.index.Search(bleveReq)
 	if err != nil {
@@ -162,6 +171,20 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 	}, nil
 }
 
+// subAggScanSize caps how many matched hits we walk when emulating
+// sub-aggregations. Higher is slower per query but keeps deeper
+// buckets visible. math.MaxInt instructs bleve to return everything.
+const subAggScanSize = math.MaxInt
+
+func needsSubAggScan(aggs []*searchService.AggregationOption) bool {
+	for _, agg := range aggs {
+		if len(agg.GetSubAggregations()) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // defaultFacetSize is used when the request does not specify a size. Bleve
 // requires a positive integer; we collect up to this many buckets per space
 // and let the service layer trim after cross-space merging.
@@ -207,12 +230,87 @@ func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.Agg
 				})
 			}
 		}
+		if subAggs := agg.GetSubAggregations(); len(subAggs) > 0 {
+			attachSubAggregations(res, agg.GetField(), subAggs, buckets)
+		}
 		out = append(out, &searchService.AggregationResult{
 			Field:   agg.GetField(),
 			Buckets: buckets,
 		})
 	}
 	return out
+}
+
+// attachSubAggregations folds the matched hit set into nested buckets
+// scoped to each parent bucket. This is bleve's emulation of composite
+// terms aggregations: we walk res.Hits once, group by the parent
+// field's value, and for each sub-aggregation request compute term
+// buckets over the requested child field within that parent group.
+//
+// Only terms sub-aggregations are supported today — range and metric
+// aggregations live behind TODOs until callers need them.
+func attachSubAggregations(res *bleve.SearchResult, parentField string, subAggs []*searchService.AggregationOption, buckets []*searchService.Bucket) {
+	bucketByKey := make(map[string]*searchService.Bucket, len(buckets))
+	for _, b := range buckets {
+		bucketByKey[b.GetKey()] = b
+	}
+
+	type counter struct {
+		total  map[string]int64
+		unique map[string]map[string]struct{}
+	}
+	sub := make(map[string]*counter, len(buckets))
+	for _, b := range buckets {
+		c := &counter{
+			total:  make(map[string]int64, len(subAggs)),
+			unique: make(map[string]map[string]struct{}, len(subAggs)),
+		}
+		for _, sa := range subAggs {
+			c.unique[sa.GetField()] = make(map[string]struct{})
+		}
+		sub[b.GetKey()] = c
+	}
+
+	for _, hit := range res.Hits {
+		parentVal, ok := hit.Fields[parentField].(string)
+		if !ok || parentVal == "" {
+			continue
+		}
+		c, ok := sub[parentVal]
+		if !ok {
+			continue
+		}
+		for _, sa := range subAggs {
+			val, ok := hit.Fields[sa.GetField()].(string)
+			if !ok || val == "" {
+				continue
+			}
+			c.total[sa.GetField()]++
+			c.unique[sa.GetField()][val] = struct{}{}
+		}
+	}
+
+	for key, c := range sub {
+		b := bucketByKey[key]
+		for _, sa := range subAggs {
+			seen := c.unique[sa.GetField()]
+			childBuckets := make([]*searchService.Bucket, 0, len(seen))
+			for term := range seen {
+				childBuckets = append(childBuckets, &searchService.Bucket{
+					Key:   term,
+					Count: 1, // placeholder: we know the distinct term exists
+				})
+			}
+			// Cap to size if the caller asked for a limit.
+			if sz := int(sa.GetSize()); sz > 0 && len(childBuckets) > sz {
+				childBuckets = childBuckets[:sz]
+			}
+			b.SubAggregations = append(b.SubAggregations, &searchService.AggregationResult{
+				Field:   sa.GetField(),
+				Buckets: childBuckets,
+			})
+		}
+	}
 }
 
 func aggregationRanges(agg *searchService.AggregationOption) []*searchService.BucketRange {

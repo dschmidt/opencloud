@@ -286,11 +286,17 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 			for _, b := range agg.GetBuckets() {
 				if existing, ok := mergedAggregations[field][b.GetKey()]; ok {
 					existing.Count += b.GetCount()
+					// Cross-space merge of nested buckets: union the
+					// child-bucket sets per sub-aggregation. Keeps
+					// `albumCount`-style sums accurate when an artist
+					// straddles multiple spaces.
+					existing.SubAggregations = mergeSubAggregations(existing.GetSubAggregations(), b.GetSubAggregations())
 					continue
 				}
 				mergedAggregations[field][b.GetKey()] = &searchsvc.Bucket{
-					Key:   b.GetKey(),
-					Count: b.GetCount(),
+					Key:             b.GetKey(),
+					Count:           b.GetCount(),
+					SubAggregations: b.GetSubAggregations(),
 				}
 			}
 		}
@@ -330,6 +336,48 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 
 // searchmsgBucket is an alias to make the bucket map-of-maps easier to read.
 type searchmsgBucket = searchsvc.Bucket
+
+// mergeSubAggregations unions two lists of nested aggregation results
+// by field, then unions their child-bucket sets by key. Counts are
+// summed per child-bucket key. Used by the cross-space merge to keep
+// the parent bucket's sub-aggregation data consistent.
+func mergeSubAggregations(a, b []*searchsvc.AggregationResult) []*searchsvc.AggregationResult {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+	byField := make(map[string]*searchsvc.AggregationResult, len(a))
+	for _, r := range a {
+		byField[r.GetField()] = r
+	}
+	for _, r := range b {
+		existing, ok := byField[r.GetField()]
+		if !ok {
+			byField[r.GetField()] = r
+			continue
+		}
+		byKey := make(map[string]*searchsvc.Bucket, len(existing.Buckets))
+		for _, bk := range existing.Buckets {
+			byKey[bk.GetKey()] = bk
+		}
+		for _, bk := range r.GetBuckets() {
+			if prev, ok := byKey[bk.GetKey()]; ok {
+				prev.Count += bk.GetCount()
+				prev.SubAggregations = mergeSubAggregations(prev.GetSubAggregations(), bk.GetSubAggregations())
+			} else {
+				existing.Buckets = append(existing.Buckets, bk)
+				byKey[bk.GetKey()] = bk
+			}
+		}
+	}
+	out := make([]*searchsvc.AggregationResult, 0, len(byField))
+	for _, r := range byField {
+		out = append(out, r)
+	}
+	return out
+}
 
 // postProcessBuckets applies the caller's BucketDefinition to a merged bucket
 // list: minimumCount filter, sort by sortBy (count / keyAsString / keyAsNumber)

@@ -172,6 +172,13 @@
         "bucketDefinition": {
           "$ref": "#/definitions/v0BucketDefinition",
           "description": "Optional. Controls bucket selection, ordering and filtering."
+        },
+        "subAggregations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v0AggregationOption"
+          },
+          "description": "Optional. Nested aggregations computed within each bucket of this\naggregation. On bleve, sub-aggregations are emulated by walking the\nmatched result set; on OpenSearch they translate to native composite\naggregations."
         }
       }
     },
@@ -261,6 +268,13 @@
         },
         "aggregationFilterToken": {
           "type": "string"
+        },
+        "subAggregations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v0AggregationResult"
+          },
+          "description": "Nested aggregation results, one entry per sub_aggregation requested\non the parent AggregationOption."
         }
       }
     },

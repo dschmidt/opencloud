@@ -19,13 +19,16 @@ import (
 // checks if the AggregationOption type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &AggregationOption{}
 
-// AggregationOption Specifies an aggregation that should be computed and returned alongside search results. Follows the [MS Graph aggregationOption](https://learn.microsoft.com/en-us/graph/api/resources/aggregationoption) resource type.  For string fields, terms aggregations return the distinct values and their counts. For numeric and date fields, range aggregations can be defined using the `ranges` property of `bucketDefinition`. 
+// AggregationOption Specifies an aggregation that should be computed and returned alongside search results. Follows the [MS Graph aggregationOption](https://learn.microsoft.com/en-us/graph/api/resources/aggregationoption) resource type.  For string fields, terms aggregations return the distinct values and their counts. For numeric and date fields, range aggregations can be defined using the `ranges` property of `bucketDefinition`.
 type AggregationOption struct {
-	// Specifies the field in the schema of the specified entity type that the aggregation should be computed on. Required.  Examples: `audio.artist`, `audio.genre`, `audio.year`, `mimeType`. 
+	// Specifies the field in the schema of the specified entity type that the aggregation should be computed on. Required.  Examples: `audio.artist`, `audio.genre`, `audio.year`, `mimeType`.
 	Field string `json:"field"`
-	// The number of `searchBucket` resources to be returned. This is optional and only applies to terms aggregations. Combined with `bucketDefinition.sortBy` and `bucketDefinition.isDescending` to produce the top N results by count or key. When not specified, all buckets are returned. 
+	// The number of `searchBucket` resources to be returned. This is optional and only applies to terms aggregations. Combined with `bucketDefinition.sortBy` and `bucketDefinition.isDescending` to produce the top N results by count or key. When not specified, all buckets are returned.
 	Size *int32 `json:"size,omitempty"`
 	BucketDefinition *BucketDefinition `json:"bucketDefinition,omitempty"`
+	// Optional. Nested aggregations computed within each bucket of this
+	// aggregation. Libregraph extension not present in MS Graph.
+	SubAggregations []AggregationOption `json:"subAggregations,omitempty"`
 }
 
 type _AggregationOption AggregationOption
@@ -152,6 +155,9 @@ func (o AggregationOption) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.BucketDefinition) {
 		toSerialize["bucketDefinition"] = o.BucketDefinition
+	}
+	if len(o.SubAggregations) > 0 {
+		toSerialize["subAggregations"] = o.SubAggregations
 	}
 	return toSerialize, nil
 }

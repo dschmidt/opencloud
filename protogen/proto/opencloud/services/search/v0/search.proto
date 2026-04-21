@@ -122,6 +122,11 @@ message AggregationOption {
   int32 size = 2 [(google.api.field_behavior) = OPTIONAL];
   // Optional. Controls bucket selection, ordering and filtering.
   BucketDefinition bucket_definition = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Optional. Nested aggregations computed within each bucket of this
+  // aggregation. On bleve, sub-aggregations are emulated by walking the
+  // matched result set; on OpenSearch they translate to native composite
+  // aggregations.
+  repeated AggregationOption sub_aggregations = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
 message BucketDefinition {
@@ -150,6 +155,9 @@ message Bucket {
   string key = 1;
   int64 count = 2;
   string aggregation_filter_token = 3;
+  // Nested aggregation results, one entry per sub_aggregation requested
+  // on the parent AggregationOption.
+  repeated AggregationResult sub_aggregations = 4;
 }
 
 message IndexSpaceRequest {

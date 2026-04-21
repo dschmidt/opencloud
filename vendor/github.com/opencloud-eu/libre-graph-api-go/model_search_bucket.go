@@ -17,14 +17,18 @@ import (
 // checks if the SearchBucket type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &SearchBucket{}
 
-// SearchBucket Represents a single bucket in a search aggregation result. Follows the [MS Graph searchBucket](https://learn.microsoft.com/en-us/graph/api/resources/searchbucket) resource type. 
+// SearchBucket Represents a single bucket in a search aggregation result. Follows the [MS Graph searchBucket](https://learn.microsoft.com/en-us/graph/api/resources/searchbucket) resource type.
 type SearchBucket struct {
-	// The discrete value of the field that was used to compute the aggregation. For terms aggregations this is the field value. For range aggregations this is a string representation of the range. 
+	// The discrete value of the field that was used to compute the aggregation. For terms aggregations this is the field value. For range aggregations this is a string representation of the range.
 	Key *string `json:"key,omitempty"`
-	// The approximate number of search matches that share the same value specified in the `key` property. 
+	// The approximate number of search matches that share the same value specified in the `key` property.
 	Count *int64 `json:"count,omitempty"`
-	// A token containing the encoded filter to aggregate search matches to the specific key value. To use the filter, pass the token as part of the `aggregationFilters` property in a subsequent `searchRequest`, in the format `\"{field}:\\\"{aggregationFilterToken}\\\"\"`. 
+	// A token containing the encoded filter to aggregate search matches to the specific key value. To use the filter, pass the token as part of the `aggregationFilters` property in a subsequent `searchRequest`, in the format `\"{field}:\\\"{aggregationFilterToken}\\\"\"`.
 	AggregationFilterToken *string `json:"aggregationFilterToken,omitempty"`
+	// Nested aggregation results, one per sub-aggregation requested on
+	// the parent `AggregationOption`. Libregraph extension not present
+	// in MS Graph.
+	SubAggregations []SearchAggregation `json:"subAggregations,omitempty"`
 }
 
 // NewSearchBucket instantiates a new SearchBucket object
@@ -158,6 +162,9 @@ func (o SearchBucket) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.AggregationFilterToken) {
 		toSerialize["aggregationFilterToken"] = o.AggregationFilterToken
+	}
+	if len(o.SubAggregations) > 0 {
+		toSerialize["subAggregations"] = o.SubAggregations
 	}
 	return toSerialize, nil
 }

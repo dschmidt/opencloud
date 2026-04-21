@@ -196,6 +196,9 @@ func libregraphAggregationsToSearch(in []libregraph.AggregationOption) []*search
 		if a.BucketDefinition != nil {
 			agg.BucketDefinition = libregraphBucketDefinitionToSearch(*a.BucketDefinition)
 		}
+		if len(a.SubAggregations) > 0 {
+			agg.SubAggregations = libregraphAggregationsToSearch(a.SubAggregations)
+		}
 		out = append(out, agg)
 	}
 	return out
@@ -242,10 +245,14 @@ func searchAggregationsToLibregraph(in []*searchsvc.AggregationResult) []libregr
 			// values containing KQL specials, empty strings or range buckets.
 			// Returning broken tokens is worse than returning none, so until
 			// we wire up proper opaque-token encoding the field stays empty.
-			buckets = append(buckets, libregraph.SearchBucket{
+			lb := libregraph.SearchBucket{
 				Key:   &key,
 				Count: &count,
-			})
+			}
+			if subs := b.GetSubAggregations(); len(subs) > 0 {
+				lb.SubAggregations = searchAggregationsToLibregraph(subs)
+			}
+			buckets = append(buckets, lb)
 		}
 		out = append(out, libregraph.SearchAggregation{
 			Field:   &field,
