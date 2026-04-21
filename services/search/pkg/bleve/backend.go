@@ -266,7 +266,9 @@ func attachSubAggregations(res *bleve.SearchResult, parentField string, subAggs 
 	// audio.duration).
 	type acc struct {
 		termValues map[string]int64 // for terms sub-aggs; nil for metrics
-		metricVal  float64          // for metric sub-aggs
+		metricVal  float64          // scalar for SUM/MIN/MAX
+		sum        float64          // AVG transport: numerator
+		count      int64            // AVG transport: denominator
 		seen       bool             // at least one hit contributed
 	}
 	// sub[parent-bucket-key] = slice of accumulators, one per sub-agg.
@@ -318,6 +320,9 @@ func attachSubAggregations(res *bleve.SearchResult, parentField string, subAggs 
 					if !a.seen || v > a.metricVal {
 						a.metricVal = v
 					}
+				case searchService.MetricKind_METRIC_KIND_AVG:
+					a.sum += v
+					a.count++
 				}
 				a.seen = true
 			}
@@ -348,11 +353,20 @@ func attachSubAggregations(res *bleve.SearchResult, parentField string, subAggs 
 				if !a.seen {
 					continue
 				}
-				b.SubAggregations = append(b.SubAggregations, &searchService.AggregationResult{
+				result := &searchService.AggregationResult{
 					Field:      sa.GetField(),
-					Value:      a.metricVal,
 					MetricKind: sa.GetMetricKind(),
-				})
+				}
+				if sa.GetMetricKind() == searchService.MetricKind_METRIC_KIND_AVG {
+					// Transport (sum, count). The graph handler
+					// collapses to value = sum / count at the final
+					// emit so cross-space merges stay additive.
+					result.Sum = a.sum
+					result.Count = a.count
+				} else {
+					result.Value = a.metricVal
+				}
+				b.SubAggregations = append(b.SubAggregations, result)
 			}
 		}
 	}

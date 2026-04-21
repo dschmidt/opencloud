@@ -362,14 +362,20 @@ func mergeSubAggregations(a, b []*searchsvc.AggregationResult) []*searchsvc.Aggr
 		}
 		if existing.GetMetricKind() != searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED ||
 			r.GetMetricKind() != searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED {
-			// Metric result: reduce the two scalars. Prefer the kind
-			// declared on `existing` so the emitter stays authoritative.
+			// Metric result: apply the kind's reducer. Prefer the
+			// kind declared on `existing` so the emitter stays
+			// authoritative.
 			kind := existing.GetMetricKind()
 			if kind == searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED {
 				kind = r.GetMetricKind()
 			}
-			existing.Value = reduceMetric(kind, existing.GetValue(), r.GetValue())
 			existing.MetricKind = kind
+			if kind == searchsvc.MetricKind_METRIC_KIND_AVG {
+				existing.Sum += r.GetSum()
+				existing.Count += r.GetCount()
+			} else {
+				existing.Value = reduceMetric(kind, existing.GetValue(), r.GetValue())
+			}
 			continue
 		}
 		byKey := make(map[string]*searchsvc.Bucket, len(existing.Buckets))

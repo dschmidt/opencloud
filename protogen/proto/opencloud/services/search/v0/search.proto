@@ -140,6 +140,7 @@ enum MetricKind {
   METRIC_KIND_SUM = 1;
   METRIC_KIND_MIN = 2;
   METRIC_KIND_MAX = 3;
+  METRIC_KIND_AVG = 4;
 }
 
 message BucketDefinition {
@@ -169,6 +170,12 @@ message AggregationResult {
   // Echoes the metric_kind of the corresponding AggregationOption. Lets
   // the cross-space merge layer pick the right reducer.
   MetricKind metric_kind = 4;
+  // Accumulators used exclusively for AVG during cross-space merges.
+  // A backend computes (sum, count) per bucket so the service layer can
+  // merge them additively and emit `value = sum/count` only at the
+  // outermost collapse. Other metric kinds leave these unset.
+  double sum = 5;
+  int64 count = 6;
 }
 
 message Bucket {

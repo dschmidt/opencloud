@@ -218,6 +218,8 @@ func metricKindFromLibregraph(kind string) searchsvc.MetricKind {
 		return searchsvc.MetricKind_METRIC_KIND_MIN
 	case "max":
 		return searchsvc.MetricKind_METRIC_KIND_MAX
+	case "avg":
+		return searchsvc.MetricKind_METRIC_KIND_AVG
 	}
 	return searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED
 }
@@ -233,6 +235,8 @@ func metricKindToLibregraph(kind searchsvc.MetricKind) *string {
 		s = "min"
 	case searchsvc.MetricKind_METRIC_KIND_MAX:
 		s = "max"
+	case searchsvc.MetricKind_METRIC_KIND_AVG:
+		s = "avg"
 	default:
 		return nil
 	}
@@ -270,9 +274,15 @@ func searchAggregationsToLibregraph(in []*searchsvc.AggregationResult) []libregr
 	out := make([]libregraph.SearchAggregation, 0, len(in))
 	for _, a := range in {
 		field := a.GetField()
-		// Metric result: emit a scalar, no bucket list.
+		// Metric result: emit a scalar, no bucket list. For AVG the
+		// backend transported (sum, count); collapse to sum/count
+		// here — this is the terminal merge, so the division is
+		// finally safe.
 		if kind := a.GetMetricKind(); kind != searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED {
 			value := a.GetValue()
+			if kind == searchsvc.MetricKind_METRIC_KIND_AVG && a.GetCount() > 0 {
+				value = a.GetSum() / float64(a.GetCount())
+			}
 			out = append(out, libregraph.SearchAggregation{
 				Field:      &field,
 				Value:      &value,

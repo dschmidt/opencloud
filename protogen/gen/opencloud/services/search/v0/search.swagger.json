@@ -206,6 +206,15 @@
         "metricKind": {
           "$ref": "#/definitions/v0MetricKind",
           "description": "Echoes the metric_kind of the corresponding AggregationOption. Lets\nthe cross-space merge layer pick the right reducer."
+        },
+        "sum": {
+          "type": "number",
+          "format": "double",
+          "description": "Accumulators used exclusively for AVG during cross-space merges.\nA backend computes (sum, count) per bucket so the service layer can\nmerge them additively and emit `value = sum/count` only at the\noutermost collapse. Other metric kinds leave these unset."
+        },
+        "count": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },
@@ -467,7 +476,8 @@
         "METRIC_KIND_UNSPECIFIED",
         "METRIC_KIND_SUM",
         "METRIC_KIND_MIN",
-        "METRIC_KIND_MAX"
+        "METRIC_KIND_MAX",
+        "METRIC_KIND_AVG"
       ],
       "default": "METRIC_KIND_UNSPECIFIED"
     },
