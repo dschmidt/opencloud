@@ -29,6 +29,10 @@ type AggregationOption struct {
 	// Optional. Nested aggregations computed within each bucket of this
 	// aggregation. Libregraph extension not present in MS Graph.
 	SubAggregations []AggregationOption `json:"subAggregations,omitempty"`
+	// Optional. When set, this aggregation is a scalar metric over
+	// `field` rather than a bucket aggregation. One of "sum" | "min" |
+	// "max". Libregraph extension.
+	MetricKind *string `json:"metricKind,omitempty"`
 }
 
 type _AggregationOption AggregationOption
@@ -158,6 +162,9 @@ func (o AggregationOption) ToMap() (map[string]interface{}, error) {
 	}
 	if len(o.SubAggregations) > 0 {
 		toSerialize["subAggregations"] = o.SubAggregations
+	}
+	if !IsNil(o.MetricKind) {
+		toSerialize["metricKind"] = o.MetricKind
 	}
 	return toSerialize, nil
 }

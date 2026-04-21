@@ -21,8 +21,16 @@ var _ MappedNullable = &SearchAggregation{}
 type SearchAggregation struct {
 	// Defines the field in the request on which the aggregation was computed. 
 	Field *string `json:"field,omitempty"`
-	// Defines the computed buckets for this aggregation. Buckets are sorted according to the `sortBy` and `isDescending` specified in the `bucketDefinition` of the corresponding `aggregationOption`. 
+	// Defines the computed buckets for this aggregation. Buckets are sorted according to the `sortBy` and `isDescending` specified in the `bucketDefinition` of the corresponding `aggregationOption`.
 	Buckets []SearchBucket `json:"buckets,omitempty"`
+	// Scalar result for metric aggregations (`metricKind` set on the
+	// corresponding `aggregationOption`). Unset for terms/range.
+	// Libregraph extension.
+	Value *float64 `json:"value,omitempty"`
+	// Echoes the metricKind of the corresponding aggregationOption so
+	// consumers (and the search service merge layer) can pick the
+	// right reducer. Libregraph extension.
+	MetricKind *string `json:"metricKind,omitempty"`
 }
 
 // NewSearchAggregation instantiates a new SearchAggregation object
@@ -121,6 +129,12 @@ func (o SearchAggregation) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Buckets) {
 		toSerialize["buckets"] = o.Buckets
+	}
+	if !IsNil(o.Value) {
+		toSerialize["value"] = o.Value
+	}
+	if !IsNil(o.MetricKind) {
+		toSerialize["metricKind"] = o.MetricKind
 	}
 	return toSerialize, nil
 }

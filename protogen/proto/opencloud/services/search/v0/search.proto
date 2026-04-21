@@ -115,18 +115,31 @@ message SearchIndexResponse {
 }
 
 message AggregationOption {
-  // Required. The indexed field to aggregate on.
+  // Required. The indexed field to aggregate on (for terms/range
+  // aggregations) or to reduce (for metric aggregations).
   string field = 1;
   // Optional. Maximum number of buckets to return for a terms aggregation.
-  // Ignored for range aggregations.
+  // Ignored for range and metric aggregations.
   int32 size = 2 [(google.api.field_behavior) = OPTIONAL];
   // Optional. Controls bucket selection, ordering and filtering.
+  // Ignored for metric aggregations.
   BucketDefinition bucket_definition = 3 [(google.api.field_behavior) = OPTIONAL];
   // Optional. Nested aggregations computed within each bucket of this
   // aggregation. On bleve, sub-aggregations are emulated by walking the
   // matched result set; on OpenSearch they translate to native composite
   // aggregations.
   repeated AggregationOption sub_aggregations = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Optional. When set, this aggregation is a scalar metric over `field`
+  // rather than a bucket aggregation; the corresponding AggregationResult
+  // carries `value` instead of `buckets`.
+  MetricKind metric_kind = 5 [(google.api.field_behavior) = OPTIONAL];
+}
+
+enum MetricKind {
+  METRIC_KIND_UNSPECIFIED = 0;
+  METRIC_KIND_SUM = 1;
+  METRIC_KIND_MIN = 2;
+  METRIC_KIND_MAX = 3;
 }
 
 message BucketDefinition {
@@ -149,6 +162,13 @@ message BucketRange {
 message AggregationResult {
   string field = 1;
   repeated Bucket buckets = 2;
+  // Scalar value for metric aggregations (metric_kind set on the
+  // corresponding AggregationOption). Unset / zero for terms/range
+  // aggregations.
+  double value = 3;
+  // Echoes the metric_kind of the corresponding AggregationOption. Lets
+  // the cross-space merge layer pick the right reducer.
+  MetricKind metric_kind = 4;
 }
 
 message Bucket {

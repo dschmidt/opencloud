@@ -162,16 +162,16 @@
       "properties": {
         "field": {
           "type": "string",
-          "description": "Required. The indexed field to aggregate on."
+          "description": "Required. The indexed field to aggregate on (for terms/range\naggregations) or to reduce (for metric aggregations)."
         },
         "size": {
           "type": "integer",
           "format": "int32",
-          "description": "Optional. Maximum number of buckets to return for a terms aggregation.\nIgnored for range aggregations."
+          "description": "Optional. Maximum number of buckets to return for a terms aggregation.\nIgnored for range and metric aggregations."
         },
         "bucketDefinition": {
           "$ref": "#/definitions/v0BucketDefinition",
-          "description": "Optional. Controls bucket selection, ordering and filtering."
+          "description": "Optional. Controls bucket selection, ordering and filtering.\nIgnored for metric aggregations."
         },
         "subAggregations": {
           "type": "array",
@@ -179,6 +179,10 @@
             "$ref": "#/definitions/v0AggregationOption"
           },
           "description": "Optional. Nested aggregations computed within each bucket of this\naggregation. On bleve, sub-aggregations are emulated by walking the\nmatched result set; on OpenSearch they translate to native composite\naggregations."
+        },
+        "metricKind": {
+          "$ref": "#/definitions/v0MetricKind",
+          "description": "Optional. When set, this aggregation is a scalar metric over `field`\nrather than a bucket aggregation; the corresponding AggregationResult\ncarries `value` instead of `buckets`."
         }
       }
     },
@@ -193,6 +197,15 @@
           "items": {
             "$ref": "#/definitions/v0Bucket"
           }
+        },
+        "value": {
+          "type": "number",
+          "format": "double",
+          "description": "Scalar value for metric aggregations (metric_kind set on the\ncorresponding AggregationOption). Unset / zero for terms/range\naggregations."
+        },
+        "metricKind": {
+          "$ref": "#/definitions/v0MetricKind",
+          "description": "Echoes the metric_kind of the corresponding AggregationOption. Lets\nthe cross-space merge layer pick the right reducer."
         }
       }
     },
@@ -447,6 +460,16 @@
           "title": "the match score"
         }
       }
+    },
+    "v0MetricKind": {
+      "type": "string",
+      "enum": [
+        "METRIC_KIND_UNSPECIFIED",
+        "METRIC_KIND_SUM",
+        "METRIC_KIND_MIN",
+        "METRIC_KIND_MAX"
+      ],
+      "default": "METRIC_KIND_UNSPECIFIED"
     },
     "v0Photo": {
       "type": "object",

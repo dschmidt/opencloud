@@ -241,34 +241,46 @@ func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.Agg
 	return out
 }
 
-// attachSubAggregations folds the matched hit set into nested buckets
-// scoped to each parent bucket. This is bleve's emulation of composite
-// terms aggregations: we walk res.Hits once, group by the parent
-// field's value, and for each sub-aggregation request compute term
-// buckets over the requested child field within that parent group.
+// attachSubAggregations folds the matched hit set into nested
+// aggregation results scoped to each parent bucket. It emulates
+// composite aggregations on top of bleve's count-only term facets by
+// walking res.Hits once and, per parent bucket, accumulating:
 //
-// Only terms sub-aggregations are supported today — range and metric
-// aggregations live behind TODOs until callers need them.
+//   - terms sub-aggregations: the set of distinct child-field values
+//     and per-value document counts.
+//   - metric sub-aggregations (sum/min/max): the scalar reducer
+//     applied to the child-field value of every hit in the bucket.
+//
+// A single pass handles both: the child-field value is read once and
+// then dispatched into the terms set, the per-value counter, and the
+// scalar reducer as applicable.
 func attachSubAggregations(res *bleve.SearchResult, parentField string, subAggs []*searchService.AggregationOption, buckets []*searchService.Bucket) {
 	bucketByKey := make(map[string]*searchService.Bucket, len(buckets))
 	for _, b := range buckets {
 		bucketByKey[b.GetKey()] = b
 	}
 
-	type counter struct {
-		total  map[string]int64
-		unique map[string]map[string]struct{}
+	// Per sub-agg accumulator, indexed by position in subAggs — using
+	// the sub-agg's field as a key would collide when the caller asks
+	// for multiple metrics on the same field (e.g. sum, min and max of
+	// audio.duration).
+	type acc struct {
+		termValues map[string]int64 // for terms sub-aggs; nil for metrics
+		metricVal  float64          // for metric sub-aggs
+		seen       bool             // at least one hit contributed
 	}
-	sub := make(map[string]*counter, len(buckets))
+	// sub[parent-bucket-key] = slice of accumulators, one per sub-agg.
+	sub := make(map[string][]*acc, len(buckets))
 	for _, b := range buckets {
-		c := &counter{
-			total:  make(map[string]int64, len(subAggs)),
-			unique: make(map[string]map[string]struct{}, len(subAggs)),
+		accs := make([]*acc, len(subAggs))
+		for i, sa := range subAggs {
+			a := &acc{}
+			if sa.GetMetricKind() == searchService.MetricKind_METRIC_KIND_UNSPECIFIED {
+				a.termValues = map[string]int64{}
+			}
+			accs[i] = a
 		}
-		for _, sa := range subAggs {
-			c.unique[sa.GetField()] = make(map[string]struct{})
-		}
-		sub[b.GetKey()] = c
+		sub[b.GetKey()] = accs
 	}
 
 	for _, hit := range res.Hits {
@@ -276,40 +288,95 @@ func attachSubAggregations(res *bleve.SearchResult, parentField string, subAggs 
 		if !ok || parentVal == "" {
 			continue
 		}
-		c, ok := sub[parentVal]
+		accs, ok := sub[parentVal]
 		if !ok {
 			continue
 		}
-		for _, sa := range subAggs {
-			val, ok := hit.Fields[sa.GetField()].(string)
-			if !ok || val == "" {
-				continue
+		for i, sa := range subAggs {
+			a := accs[i]
+			switch sa.GetMetricKind() {
+			case searchService.MetricKind_METRIC_KIND_UNSPECIFIED:
+				val, ok := hit.Fields[sa.GetField()].(string)
+				if !ok || val == "" {
+					continue
+				}
+				a.termValues[val]++
+				a.seen = true
+			default:
+				v, ok := numericFieldValue(hit.Fields[sa.GetField()])
+				if !ok {
+					continue
+				}
+				switch sa.GetMetricKind() {
+				case searchService.MetricKind_METRIC_KIND_SUM:
+					a.metricVal += v
+				case searchService.MetricKind_METRIC_KIND_MIN:
+					if !a.seen || v < a.metricVal {
+						a.metricVal = v
+					}
+				case searchService.MetricKind_METRIC_KIND_MAX:
+					if !a.seen || v > a.metricVal {
+						a.metricVal = v
+					}
+				}
+				a.seen = true
 			}
-			c.total[sa.GetField()]++
-			c.unique[sa.GetField()][val] = struct{}{}
 		}
 	}
 
-	for key, c := range sub {
+	for key, accs := range sub {
 		b := bucketByKey[key]
-		for _, sa := range subAggs {
-			seen := c.unique[sa.GetField()]
-			childBuckets := make([]*searchService.Bucket, 0, len(seen))
-			for term := range seen {
-				childBuckets = append(childBuckets, &searchService.Bucket{
-					Key:   term,
-					Count: 1, // placeholder: we know the distinct term exists
+		for i, sa := range subAggs {
+			a := accs[i]
+			switch sa.GetMetricKind() {
+			case searchService.MetricKind_METRIC_KIND_UNSPECIFIED:
+				childBuckets := make([]*searchService.Bucket, 0, len(a.termValues))
+				for term, count := range a.termValues {
+					childBuckets = append(childBuckets, &searchService.Bucket{
+						Key:   term,
+						Count: count,
+					})
+				}
+				if sz := int(sa.GetSize()); sz > 0 && len(childBuckets) > sz {
+					childBuckets = childBuckets[:sz]
+				}
+				b.SubAggregations = append(b.SubAggregations, &searchService.AggregationResult{
+					Field:   sa.GetField(),
+					Buckets: childBuckets,
+				})
+			default:
+				if !a.seen {
+					continue
+				}
+				b.SubAggregations = append(b.SubAggregations, &searchService.AggregationResult{
+					Field:      sa.GetField(),
+					Value:      a.metricVal,
+					MetricKind: sa.GetMetricKind(),
 				})
 			}
-			// Cap to size if the caller asked for a limit.
-			if sz := int(sa.GetSize()); sz > 0 && len(childBuckets) > sz {
-				childBuckets = childBuckets[:sz]
-			}
-			b.SubAggregations = append(b.SubAggregations, &searchService.AggregationResult{
-				Field:   sa.GetField(),
-				Buckets: childBuckets,
-			})
 		}
+	}
+}
+
+// numericFieldValue coerces a bleve stored-field value into float64.
+// Bleve surfaces numeric fields as float64 directly; we also accept
+// a string representation for robustness against docvalue quirks.
+func numericFieldValue(raw interface{}) (float64, bool) {
+	switch v := raw.(type) {
+	case float64:
+		return v, true
+	case int64:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case string:
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0, false
+		}
+		return f, true
+	default:
+		return 0, false
 	}
 }
 

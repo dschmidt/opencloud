@@ -199,9 +199,44 @@ func libregraphAggregationsToSearch(in []libregraph.AggregationOption) []*search
 		if len(a.SubAggregations) > 0 {
 			agg.SubAggregations = libregraphAggregationsToSearch(a.SubAggregations)
 		}
+		if a.MetricKind != nil {
+			agg.MetricKind = metricKindFromLibregraph(*a.MetricKind)
+		}
 		out = append(out, agg)
 	}
 	return out
+}
+
+// metricKindFromLibregraph maps the OpenAPI-level string enum to the
+// proto enum. Unknown values degrade to UNSPECIFIED, so the aggregation
+// is treated as a regular bucket aggregation — safer than erroring out.
+func metricKindFromLibregraph(kind string) searchsvc.MetricKind {
+	switch kind {
+	case "sum":
+		return searchsvc.MetricKind_METRIC_KIND_SUM
+	case "min":
+		return searchsvc.MetricKind_METRIC_KIND_MIN
+	case "max":
+		return searchsvc.MetricKind_METRIC_KIND_MAX
+	}
+	return searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED
+}
+
+// metricKindToLibregraph is the inverse of metricKindFromLibregraph,
+// used when serialising an AggregationResult back to the caller.
+func metricKindToLibregraph(kind searchsvc.MetricKind) *string {
+	var s string
+	switch kind {
+	case searchsvc.MetricKind_METRIC_KIND_SUM:
+		s = "sum"
+	case searchsvc.MetricKind_METRIC_KIND_MIN:
+		s = "min"
+	case searchsvc.MetricKind_METRIC_KIND_MAX:
+		s = "max"
+	default:
+		return nil
+	}
+	return &s
 }
 
 func libregraphBucketDefinitionToSearch(in libregraph.BucketDefinition) *searchsvc.BucketDefinition {
@@ -235,6 +270,16 @@ func searchAggregationsToLibregraph(in []*searchsvc.AggregationResult) []libregr
 	out := make([]libregraph.SearchAggregation, 0, len(in))
 	for _, a := range in {
 		field := a.GetField()
+		// Metric result: emit a scalar, no bucket list.
+		if kind := a.GetMetricKind(); kind != searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED {
+			value := a.GetValue()
+			out = append(out, libregraph.SearchAggregation{
+				Field:      &field,
+				Value:      &value,
+				MetricKind: metricKindToLibregraph(kind),
+			})
+			continue
+		}
 		buckets := make([]libregraph.SearchBucket, 0, len(a.GetBuckets()))
 		for _, b := range a.GetBuckets() {
 			key := b.GetKey()

@@ -338,9 +338,11 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 type searchmsgBucket = searchsvc.Bucket
 
 // mergeSubAggregations unions two lists of nested aggregation results
-// by field, then unions their child-bucket sets by key. Counts are
-// summed per child-bucket key. Used by the cross-space merge to keep
-// the parent bucket's sub-aggregation data consistent.
+// by field. For terms results it unions child-bucket sets by key
+// (summing counts and recursively merging their sub-aggregations); for
+// metric results (metricKind set) it applies the metric's own reducer
+// (sum -> +, min -> min, max -> max). Used by the cross-space merge
+// to keep the parent bucket's sub-aggregation data consistent.
 func mergeSubAggregations(a, b []*searchsvc.AggregationResult) []*searchsvc.AggregationResult {
 	if len(a) == 0 {
 		return b
@@ -356,6 +358,18 @@ func mergeSubAggregations(a, b []*searchsvc.AggregationResult) []*searchsvc.Aggr
 		existing, ok := byField[r.GetField()]
 		if !ok {
 			byField[r.GetField()] = r
+			continue
+		}
+		if existing.GetMetricKind() != searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED ||
+			r.GetMetricKind() != searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED {
+			// Metric result: reduce the two scalars. Prefer the kind
+			// declared on `existing` so the emitter stays authoritative.
+			kind := existing.GetMetricKind()
+			if kind == searchsvc.MetricKind_METRIC_KIND_UNSPECIFIED {
+				kind = r.GetMetricKind()
+			}
+			existing.Value = reduceMetric(kind, existing.GetValue(), r.GetValue())
+			existing.MetricKind = kind
 			continue
 		}
 		byKey := make(map[string]*searchsvc.Bucket, len(existing.Buckets))
@@ -377,6 +391,28 @@ func mergeSubAggregations(a, b []*searchsvc.AggregationResult) []*searchsvc.Aggr
 		out = append(out, r)
 	}
 	return out
+}
+
+// reduceMetric applies the metric's cross-shard reducer to two scalar
+// values. Identity element differs per kind, but since we only call
+// this when both sides actually carry a metric value, we apply the
+// reducer unconditionally.
+func reduceMetric(kind searchsvc.MetricKind, a, b float64) float64 {
+	switch kind {
+	case searchsvc.MetricKind_METRIC_KIND_SUM:
+		return a + b
+	case searchsvc.MetricKind_METRIC_KIND_MIN:
+		if b < a {
+			return b
+		}
+		return a
+	case searchsvc.MetricKind_METRIC_KIND_MAX:
+		if b > a {
+			return b
+		}
+		return a
+	}
+	return a
 }
 
 // postProcessBuckets applies the caller's BucketDefinition to a merged bucket
