@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
+	bleveSearch "github.com/blevesearch/bleve/v2/search"
 	"github.com/blevesearch/bleve/v2/search/query"
 	storageProvider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
 	"github.com/opencloud-eu/reva/v2/pkg/errtypes"
@@ -241,48 +242,149 @@ func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.Agg
 	return out
 }
 
+// subAcc is the recursive accumulator used by attachSubAggregations
+// to emulate composite aggregations on bleve. Each node in the tree
+// represents the state for one sub-aggregation under a given parent
+// bucket (either the top-level term bucket or a nested term value).
+type subAcc struct {
+	// Terms sub-aggregation state:
+	// - count per distinct child value
+	// - recursive accumulators for this sub-agg's own sub-aggregations,
+	//   indexed by (child-value, sub-sub-agg-position).
+	termCount map[string]int64
+	termSubs  map[string][]*subAcc
+
+	// Metric sub-aggregation state:
+	metricVal float64 // SUM/MIN/MAX
+	sum       float64 // AVG transport: numerator
+	count     int64   // AVG transport: denominator
+
+	seen bool // at least one hit contributed
+}
+
+// newSubAcc allocates an accumulator tailored to the given sub-agg.
+func newSubAcc(sa *searchService.AggregationOption) *subAcc {
+	a := &subAcc{}
+	if sa.GetMetricKind() == searchService.MetricKind_METRIC_KIND_UNSPECIFIED {
+		a.termCount = map[string]int64{}
+		if len(sa.GetSubAggregations()) > 0 {
+			a.termSubs = map[string][]*subAcc{}
+		}
+	}
+	return a
+}
+
+// accumulateHit folds one hit's fields into a single sub-agg's
+// accumulator, recursing into any grand-sub-aggregations.
+func accumulateHit(a *subAcc, sa *searchService.AggregationOption, hit *bleveSearch.DocumentMatch) {
+	switch sa.GetMetricKind() {
+	case searchService.MetricKind_METRIC_KIND_UNSPECIFIED:
+		val, ok := hit.Fields[sa.GetField()].(string)
+		if !ok || val == "" {
+			return
+		}
+		a.termCount[val]++
+		a.seen = true
+		if subs := sa.GetSubAggregations(); len(subs) > 0 {
+			childAccs, ok := a.termSubs[val]
+			if !ok {
+				childAccs = make([]*subAcc, len(subs))
+				for i, ssa := range subs {
+					childAccs[i] = newSubAcc(ssa)
+				}
+				a.termSubs[val] = childAccs
+			}
+			for i, ssa := range subs {
+				accumulateHit(childAccs[i], ssa, hit)
+			}
+		}
+	default:
+		v, ok := numericFieldValue(hit.Fields[sa.GetField()])
+		if !ok {
+			return
+		}
+		switch sa.GetMetricKind() {
+		case searchService.MetricKind_METRIC_KIND_SUM:
+			a.metricVal += v
+		case searchService.MetricKind_METRIC_KIND_MIN:
+			if !a.seen || v < a.metricVal {
+				a.metricVal = v
+			}
+		case searchService.MetricKind_METRIC_KIND_MAX:
+			if !a.seen || v > a.metricVal {
+				a.metricVal = v
+			}
+		case searchService.MetricKind_METRIC_KIND_AVG:
+			a.sum += v
+			a.count++
+		}
+		a.seen = true
+	}
+}
+
+// emitAcc materialises a sub-agg accumulator into the proto result
+// type, recursing for terms with their own sub-aggregations.
+func emitAcc(a *subAcc, sa *searchService.AggregationOption) *searchService.AggregationResult {
+	if sa.GetMetricKind() != searchService.MetricKind_METRIC_KIND_UNSPECIFIED {
+		if !a.seen {
+			return nil
+		}
+		r := &searchService.AggregationResult{
+			Field:      sa.GetField(),
+			MetricKind: sa.GetMetricKind(),
+		}
+		if sa.GetMetricKind() == searchService.MetricKind_METRIC_KIND_AVG {
+			r.Sum = a.sum
+			r.Count = a.count
+		} else {
+			r.Value = a.metricVal
+		}
+		return r
+	}
+
+	subs := sa.GetSubAggregations()
+	childBuckets := make([]*searchService.Bucket, 0, len(a.termCount))
+	for term, count := range a.termCount {
+		b := &searchService.Bucket{Key: term, Count: count}
+		if len(subs) > 0 {
+			if childAccs, ok := a.termSubs[term]; ok {
+				for i, ssa := range subs {
+					if sub := emitAcc(childAccs[i], ssa); sub != nil {
+						b.SubAggregations = append(b.SubAggregations, sub)
+					}
+				}
+			}
+		}
+		childBuckets = append(childBuckets, b)
+	}
+	if sz := int(sa.GetSize()); sz > 0 && len(childBuckets) > sz {
+		childBuckets = childBuckets[:sz]
+	}
+	return &searchService.AggregationResult{
+		Field:   sa.GetField(),
+		Buckets: childBuckets,
+	}
+}
+
 // attachSubAggregations folds the matched hit set into nested
-// aggregation results scoped to each parent bucket. It emulates
-// composite aggregations on top of bleve's count-only term facets by
-// walking res.Hits once and, per parent bucket, accumulating:
-//
-//   - terms sub-aggregations: the set of distinct child-field values
-//     and per-value document counts.
-//   - metric sub-aggregations (sum/min/max): the scalar reducer
-//     applied to the child-field value of every hit in the bucket.
-//
-// A single pass handles both: the child-field value is read once and
-// then dispatched into the terms set, the per-value counter, and the
-// scalar reducer as applicable.
+// aggregation results scoped to each parent bucket. Runs a single
+// hit walk and dispatches each hit into a recursive accumulator tree
+// mirroring the requested sub-aggregation shape — so terms nested
+// inside terms, metrics nested inside terms, and any depth thereof
+// all work.
 func attachSubAggregations(res *bleve.SearchResult, parentField string, subAggs []*searchService.AggregationOption, buckets []*searchService.Bucket) {
 	bucketByKey := make(map[string]*searchService.Bucket, len(buckets))
 	for _, b := range buckets {
 		bucketByKey[b.GetKey()] = b
 	}
 
-	// Per sub-agg accumulator, indexed by position in subAggs — using
-	// the sub-agg's field as a key would collide when the caller asks
-	// for multiple metrics on the same field (e.g. sum, min and max of
-	// audio.duration).
-	type acc struct {
-		termValues map[string]int64 // for terms sub-aggs; nil for metrics
-		metricVal  float64          // scalar for SUM/MIN/MAX
-		sum        float64          // AVG transport: numerator
-		count      int64            // AVG transport: denominator
-		seen       bool             // at least one hit contributed
-	}
-	// sub[parent-bucket-key] = slice of accumulators, one per sub-agg.
-	sub := make(map[string][]*acc, len(buckets))
+	perParent := make(map[string][]*subAcc, len(buckets))
 	for _, b := range buckets {
-		accs := make([]*acc, len(subAggs))
+		accs := make([]*subAcc, len(subAggs))
 		for i, sa := range subAggs {
-			a := &acc{}
-			if sa.GetMetricKind() == searchService.MetricKind_METRIC_KIND_UNSPECIFIED {
-				a.termValues = map[string]int64{}
-			}
-			accs[i] = a
+			accs[i] = newSubAcc(sa)
 		}
-		sub[b.GetKey()] = accs
+		perParent[b.GetKey()] = accs
 	}
 
 	for _, hit := range res.Hits {
@@ -290,83 +392,20 @@ func attachSubAggregations(res *bleve.SearchResult, parentField string, subAggs 
 		if !ok || parentVal == "" {
 			continue
 		}
-		accs, ok := sub[parentVal]
+		accs, ok := perParent[parentVal]
 		if !ok {
 			continue
 		}
 		for i, sa := range subAggs {
-			a := accs[i]
-			switch sa.GetMetricKind() {
-			case searchService.MetricKind_METRIC_KIND_UNSPECIFIED:
-				val, ok := hit.Fields[sa.GetField()].(string)
-				if !ok || val == "" {
-					continue
-				}
-				a.termValues[val]++
-				a.seen = true
-			default:
-				v, ok := numericFieldValue(hit.Fields[sa.GetField()])
-				if !ok {
-					continue
-				}
-				switch sa.GetMetricKind() {
-				case searchService.MetricKind_METRIC_KIND_SUM:
-					a.metricVal += v
-				case searchService.MetricKind_METRIC_KIND_MIN:
-					if !a.seen || v < a.metricVal {
-						a.metricVal = v
-					}
-				case searchService.MetricKind_METRIC_KIND_MAX:
-					if !a.seen || v > a.metricVal {
-						a.metricVal = v
-					}
-				case searchService.MetricKind_METRIC_KIND_AVG:
-					a.sum += v
-					a.count++
-				}
-				a.seen = true
-			}
+			accumulateHit(accs[i], sa, hit)
 		}
 	}
 
-	for key, accs := range sub {
+	for key, accs := range perParent {
 		b := bucketByKey[key]
 		for i, sa := range subAggs {
-			a := accs[i]
-			switch sa.GetMetricKind() {
-			case searchService.MetricKind_METRIC_KIND_UNSPECIFIED:
-				childBuckets := make([]*searchService.Bucket, 0, len(a.termValues))
-				for term, count := range a.termValues {
-					childBuckets = append(childBuckets, &searchService.Bucket{
-						Key:   term,
-						Count: count,
-					})
-				}
-				if sz := int(sa.GetSize()); sz > 0 && len(childBuckets) > sz {
-					childBuckets = childBuckets[:sz]
-				}
-				b.SubAggregations = append(b.SubAggregations, &searchService.AggregationResult{
-					Field:   sa.GetField(),
-					Buckets: childBuckets,
-				})
-			default:
-				if !a.seen {
-					continue
-				}
-				result := &searchService.AggregationResult{
-					Field:      sa.GetField(),
-					MetricKind: sa.GetMetricKind(),
-				}
-				if sa.GetMetricKind() == searchService.MetricKind_METRIC_KIND_AVG {
-					// Transport (sum, count). The graph handler
-					// collapses to value = sum / count at the final
-					// emit so cross-space merges stay additive.
-					result.Sum = a.sum
-					result.Count = a.count
-				} else {
-					result.Value = a.metricVal
-				}
-				b.SubAggregations = append(b.SubAggregations, result)
+			if r := emitAcc(accs[i], sa); r != nil {
+				b.SubAggregations = append(b.SubAggregations, r)
 			}
 		}
 	}
