@@ -46,6 +46,16 @@ const (
 	// causes that directory and all its descendants to be hidden from
 	// search results (similar to Android's .nomedia).
 	_excludeMarkerName = ".nomedia"
+
+	// _maxExcludeMarkerLookup caps the number of marker files we read
+	// per space. Bounds memory for the pre-query.
+	_maxExcludeMarkerLookup = 1024
+
+	// _maxExcludePrefixes caps the number of prefixes that get pushed
+	// into the engine query after consolidation. Keeps the resulting
+	// MustNot clause count well below OpenSearch's default
+	// indices.query.bool.max_clause_count (1024).
+	_maxExcludePrefixes = 256
 )
 
 // Searcher is the interface to the SearchService
@@ -787,18 +797,80 @@ func (s *Service) fetchExcludedPrefixes(ctx context.Context, rootID *searchmsg.R
 	res, err := s.engine.Search(ctx, &searchsvc.SearchIndexRequest{
 		Query:    "Name:" + _excludeMarkerName,
 		Ref:      &searchmsg.Reference{ResourceId: rootID},
-		PageSize: -1,
+		PageSize: _maxExcludeMarkerLookup,
 	}, nil)
 	if err != nil {
 		return nil, err
 	}
+	if len(res.Matches) >= _maxExcludeMarkerLookup {
+		s.logger.Warn().
+			Str("rootId", rootID.GetOpaqueId()).
+			Int("limit", _maxExcludeMarkerLookup).
+			Msg("exclude marker lookup hit cap; some markers may be ignored")
+	}
+
 	prefixes := make([]string, 0, len(res.Matches))
 	for _, m := range res.Matches {
 		p := m.GetEntity().GetRef().GetPath()
-		if p == "" {
+		dir := markerParentDir(p)
+		if dir == "" {
 			continue
 		}
-		prefixes = append(prefixes, path.Dir(p))
+		prefixes = append(prefixes, dir)
+	}
+
+	prefixes = consolidatePrefixes(prefixes)
+	if len(prefixes) > _maxExcludePrefixes {
+		s.logger.Warn().
+			Str("rootId", rootID.GetOpaqueId()).
+			Int("count", len(prefixes)).
+			Int("limit", _maxExcludePrefixes).
+			Msg("too many exclude prefixes; truncating to cap")
+		prefixes = prefixes[:_maxExcludePrefixes]
 	}
 	return prefixes, nil
+}
+
+// markerParentDir returns the directory containing the marker file, in
+// the same path form used by the index ("." for the space root,
+// "./foo/bar" otherwise). Returns "" for paths that don't look like a
+// marker location (defensive guard against unexpected index data).
+func markerParentDir(markerPath string) string {
+	if markerPath == "" {
+		return ""
+	}
+	// path.Dir cleans away the leading "./" — re-normalize through
+	// MakeRelativePath so prefixes match what the index actually stores.
+	dir := utils.MakeRelativePath(path.Dir(markerPath))
+	if dir == "" {
+		return ""
+	}
+	return dir
+}
+
+// consolidatePrefixes drops prefixes that are already covered by a
+// shallower prefix in the same set. Example: given ["./a", "./a/b"],
+// the deeper "./a/b" is redundant because "./a" already excludes it.
+// The returned slice is sorted by depth (shallowest first).
+func consolidatePrefixes(in []string) []string {
+	if len(in) < 2 {
+		return in
+	}
+	sort.Slice(in, func(i, j int) bool {
+		return len(in[i]) < len(in[j])
+	})
+	out := in[:0]
+	for _, p := range in {
+		covered := false
+		for _, kept := range out {
+			if p == kept || strings.HasPrefix(p, kept+"/") {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			out = append(out, p)
+		}
+	}
+	return out
 }
