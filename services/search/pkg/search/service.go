@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"fmt"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -40,6 +41,11 @@ const (
 	_spaceTypeProject    = "project"
 	_spaceTypeGrant      = "grant"
 	_slowQueryDuration   = 500 * time.Millisecond
+
+	// _excludeMarkerName is a file that, when present in a directory,
+	// causes that directory and all its descendants to be hidden from
+	// search results (similar to Android's .nomedia).
+	_excludeMarkerName = ".nomedia"
 )
 
 // Searcher is the interface to the SearchService
@@ -407,6 +413,24 @@ func (s *Service) searchIndex(ctx context.Context, req *searchsvc.SearchRequest,
 		s.logger.Error().Err(err).Str("duration", fmt.Sprint(duration)).Str("space", space.Id.OpaqueId).Msg("failed to search the index")
 		return nil, err
 	}
+
+	// Drop matches that live underneath an _excludeMarkerName marker.
+	// Failure to fetch the markers degrades to "no exclusion" rather
+	// than failing the whole search.
+	excluded, exErr := s.fetchExcludedPrefixes(ctx, searchRootID)
+	if exErr != nil {
+		s.logger.Warn().Err(exErr).Str("space", space.Id.OpaqueId).Msg("failed to fetch exclude markers, returning unfiltered results")
+	} else if len(excluded) > 0 {
+		filtered := res.Matches[:0]
+		for _, m := range res.Matches {
+			if isPathExcluded(m.GetEntity().GetRef().GetPath(), excluded) {
+				res.TotalMatches--
+				continue
+			}
+			filtered = append(filtered, m)
+		}
+		res.Matches = filtered
+	}
 	if duration > _slowQueryDuration {
 		s.logger.Info().Interface("searchRequest", searchRequest).Str("duration", fmt.Sprint(duration)).Str("space", space.Id.OpaqueId).Int("hits", len(res.Matches)).Msg("slow space search")
 	} else {
@@ -762,4 +786,47 @@ func (s *Service) resInfo(ref *provider.Reference) (context.Context, *provider.S
 	}
 
 	return ownerCtx, statRes, r.GetPath()
+}
+
+// fetchExcludedPrefixes queries the index for all _excludeMarkerName files
+// inside the given space root and returns the parent directory paths whose
+// contents should be hidden from search results.
+func (s *Service) fetchExcludedPrefixes(ctx context.Context, rootID *searchmsg.ResourceID) ([]string, error) {
+	res, err := s.engine.Search(ctx, &searchsvc.SearchIndexRequest{
+		Query:    "Name:" + _excludeMarkerName,
+		Ref:      &searchmsg.Reference{ResourceId: rootID},
+		PageSize: -1,
+	})
+	if err != nil {
+		return nil, err
+	}
+	prefixes := make([]string, 0, len(res.Matches))
+	for _, m := range res.Matches {
+		p := m.GetEntity().GetRef().GetPath()
+		if p == "" {
+			continue
+		}
+		dir := path.Dir(p)
+		prefixes = append(prefixes, dir)
+	}
+	return prefixes, nil
+}
+
+// isPathExcluded reports whether p sits at or beneath any of the excluded
+// directory prefixes. Prefixes are directory paths in the same form as
+// indexed Path values (e.g. "./photos/private", "." for the space root).
+func isPathExcluded(p string, excluded []string) bool {
+	if p == "" {
+		return false
+	}
+	for _, dir := range excluded {
+		if dir == "." || dir == "/" {
+			// marker at the space root excludes everything
+			return true
+		}
+		if p == dir || strings.HasPrefix(p, dir+"/") {
+			return true
+		}
+	}
+	return false
 }
