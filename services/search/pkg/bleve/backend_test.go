@@ -379,6 +379,64 @@ var _ = Describe("Bleve", func() {
 
 	})
 
+	Describe("ExcludePathPrefixes", func() {
+		var (
+			searchExcluding = func(query string, excluded []string) []*searchmsg.Match {
+				rID, err := storagespace.ParseID(rootResource.ID)
+				Expect(err).ToNot(HaveOccurred())
+				res, err := eng.Search(context.Background(), &searchsvc.SearchIndexRequest{
+					Query: query,
+					Ref: &searchmsg.Reference{
+						ResourceId: &searchmsg.ResourceID{
+							StorageId: rID.StorageId,
+							SpaceId:   rID.SpaceId,
+							OpaqueId:  rID.OpaqueId,
+						},
+					},
+				}, excluded)
+				Expect(err).ToNot(HaveOccurred())
+				return res.Matches
+			}
+
+			names = func(matches []*searchmsg.Match) []string {
+				out := make([]string, 0, len(matches))
+				for _, m := range matches {
+					out = append(out, m.GetEntity().GetName())
+				}
+				return out
+			}
+		)
+
+		BeforeEach(func() {
+			Expect(eng.Upsert(parentResource.ID, parentResource)).To(Succeed())
+			Expect(eng.Upsert(childResource.ID, childResource)).To(Succeed())
+			Expect(eng.Upsert(childResource2.ID, childResource2)).To(Succeed())
+		})
+
+		It("returns everything when no exclusions are passed", func() {
+			Expect(names(searchExcluding("Name:*", nil))).To(ConsistOf("parent d!r", "child.pdf", "child2.pdf"))
+		})
+
+		It("hides the excluded directory itself and its descendants", func() {
+			// Marker at "./parent d!r/.nomedia" → exclude prefix "./parent d!r"
+			Expect(names(searchExcluding("Name:*", []string{"./parent d!r"}))).To(BeEmpty())
+		})
+
+		It("does not confuse prefix substrings", func() {
+			// "./parent" must NOT match "./parent d!r/..."
+			Expect(names(searchExcluding("Name:*", []string{"./parent"}))).
+				To(ConsistOf("parent d!r", "child.pdf", "child2.pdf"))
+		})
+
+		It("only the bug-fix path form actually matches the index", func() {
+			// Without the leading "./" the term/prefix queries miss everything,
+			// so the result is unchanged from the no-exclusion baseline. This
+			// guards against a regression of the path.Dir normalization fix.
+			Expect(names(searchExcluding("Name:*", []string{"parent d!r"}))).
+				To(ConsistOf("parent d!r", "child.pdf", "child2.pdf"))
+		})
+	})
+
 	Describe("Upsert", func() {
 		It("adds a resourceInfo to the index", func() {
 			err := eng.Upsert(childResource.ID, childResource)
