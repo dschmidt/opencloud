@@ -42,7 +42,7 @@ func NewBackend(index bleve.Index, queryCreator searchQuery.Creator[query.Query]
 
 // Search executes a search request operation within the index.
 // Returns a SearchIndexResponse object or an error.
-func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexRequest) (*searchService.SearchIndexResponse, error) {
+func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexRequest, excludedPathPrefixes []string) (*searchService.SearchIndexResponse, error) {
 	createdQuery, err := b.queryCreator.Create(sir.Query)
 	if err != nil {
 		if searchQuery.IsValidationError(err) {
@@ -76,7 +76,24 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 		)
 	}
 
-	bleveReq := bleve.NewSearchRequest(q)
+	finalQuery := query.Query(q)
+	if len(excludedPathPrefixes) > 0 {
+		bq := bleve.NewBooleanQuery()
+		bq.AddMust(q)
+		for _, dir := range excludedPathPrefixes {
+			// exclude the directory itself
+			tq := bleve.NewTermQuery(dir)
+			tq.SetField("Path")
+			bq.AddMustNot(tq)
+			// exclude everything beneath it
+			pq := bleve.NewPrefixQuery(dir + "/")
+			pq.SetField("Path")
+			bq.AddMustNot(pq)
+		}
+		finalQuery = bq
+	}
+
+	bleveReq := bleve.NewSearchRequest(finalQuery)
 	bleveReq.Highlight = bleve.NewHighlight()
 
 	switch {

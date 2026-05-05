@@ -377,8 +377,8 @@ func (_c *Engine_Restore_Call) RunAndReturn(run func(id string) error) *Engine_R
 }
 
 // Search provides a mock function for the type Engine
-func (_mock *Engine) Search(ctx context.Context, req *v0.SearchIndexRequest) (*v0.SearchIndexResponse, error) {
-	ret := _mock.Called(ctx, req)
+func (_mock *Engine) Search(ctx context.Context, req *v0.SearchIndexRequest, excludedPathPrefixes []string) (*v0.SearchIndexResponse, error) {
+	ret := _mock.Called(ctx, req, excludedPathPrefixes)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Search")
@@ -386,18 +386,18 @@ func (_mock *Engine) Search(ctx context.Context, req *v0.SearchIndexRequest) (*v
 
 	var r0 *v0.SearchIndexResponse
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *v0.SearchIndexRequest) (*v0.SearchIndexResponse, error)); ok {
-		return returnFunc(ctx, req)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *v0.SearchIndexRequest, []string) (*v0.SearchIndexResponse, error)); ok {
+		return returnFunc(ctx, req, excludedPathPrefixes)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *v0.SearchIndexRequest) *v0.SearchIndexResponse); ok {
-		r0 = returnFunc(ctx, req)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *v0.SearchIndexRequest, []string) *v0.SearchIndexResponse); ok {
+		r0 = returnFunc(ctx, req, excludedPathPrefixes)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*v0.SearchIndexResponse)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *v0.SearchIndexRequest) error); ok {
-		r1 = returnFunc(ctx, req)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *v0.SearchIndexRequest, []string) error); ok {
+		r1 = returnFunc(ctx, req, excludedPathPrefixes)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -412,11 +412,12 @@ type Engine_Search_Call struct {
 // Search is a helper method to define mock.On call
 //   - ctx context.Context
 //   - req *v0.SearchIndexRequest
-func (_e *Engine_Expecter) Search(ctx interface{}, req interface{}) *Engine_Search_Call {
-	return &Engine_Search_Call{Call: _e.mock.On("Search", ctx, req)}
+//   - excludedPathPrefixes []string
+func (_e *Engine_Expecter) Search(ctx interface{}, req interface{}, excludedPathPrefixes interface{}) *Engine_Search_Call {
+	return &Engine_Search_Call{Call: _e.mock.On("Search", ctx, req, excludedPathPrefixes)}
 }
 
-func (_c *Engine_Search_Call) Run(run func(ctx context.Context, req *v0.SearchIndexRequest)) *Engine_Search_Call {
+func (_c *Engine_Search_Call) Run(run func(ctx context.Context, req *v0.SearchIndexRequest, excludedPathPrefixes []string)) *Engine_Search_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -426,9 +427,14 @@ func (_c *Engine_Search_Call) Run(run func(ctx context.Context, req *v0.SearchIn
 		if args[1] != nil {
 			arg1 = args[1].(*v0.SearchIndexRequest)
 		}
+		var arg2 []string
+		if args[2] != nil {
+			arg2 = args[2].([]string)
+		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -439,7 +445,7 @@ func (_c *Engine_Search_Call) Return(searchIndexResponse *v0.SearchIndexResponse
 	return _c
 }
 
-func (_c *Engine_Search_Call) RunAndReturn(run func(ctx context.Context, req *v0.SearchIndexRequest) (*v0.SearchIndexResponse, error)) *Engine_Search_Call {
+func (_c *Engine_Search_Call) RunAndReturn(run func(ctx context.Context, req *v0.SearchIndexRequest, excludedPathPrefixes []string) (*v0.SearchIndexResponse, error)) *Engine_Search_Call {
 	_c.Call.Return(run)
 	return _c
 }

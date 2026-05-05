@@ -406,30 +406,22 @@ func (s *Service) searchIndex(ctx context.Context, req *searchsvc.SearchRequest,
 		},
 		PageSize: req.PageSize,
 	}
-	start := time.Now()
-	res, err := s.engine.Search(ctx, searchRequest)
-	duration := time.Since(start)
-	if err != nil {
-		s.logger.Error().Err(err).Str("duration", fmt.Sprint(duration)).Str("space", space.Id.OpaqueId).Msg("failed to search the index")
-		return nil, err
-	}
-
-	// Drop matches that live underneath an _excludeMarkerName marker.
+	// Look up _excludeMarkerName markers and pass them down so the
+	// engine can subtract those subtrees from the result set.
 	// Failure to fetch the markers degrades to "no exclusion" rather
 	// than failing the whole search.
 	excluded, exErr := s.fetchExcludedPrefixes(ctx, searchRootID)
 	if exErr != nil {
-		s.logger.Warn().Err(exErr).Str("space", space.Id.OpaqueId).Msg("failed to fetch exclude markers, returning unfiltered results")
-	} else if len(excluded) > 0 {
-		filtered := res.Matches[:0]
-		for _, m := range res.Matches {
-			if isPathExcluded(m.GetEntity().GetRef().GetPath(), excluded) {
-				res.TotalMatches--
-				continue
-			}
-			filtered = append(filtered, m)
-		}
-		res.Matches = filtered
+		s.logger.Warn().Err(exErr).Str("space", space.Id.OpaqueId).Msg("failed to fetch exclude markers, running search without exclusion")
+		excluded = nil
+	}
+
+	start := time.Now()
+	res, err := s.engine.Search(ctx, searchRequest, excluded)
+	duration := time.Since(start)
+	if err != nil {
+		s.logger.Error().Err(err).Str("duration", fmt.Sprint(duration)).Str("space", space.Id.OpaqueId).Msg("failed to search the index")
+		return nil, err
 	}
 	if duration > _slowQueryDuration {
 		s.logger.Info().Interface("searchRequest", searchRequest).Str("duration", fmt.Sprint(duration)).Str("space", space.Id.OpaqueId).Int("hits", len(res.Matches)).Msg("slow space search")
@@ -532,7 +524,7 @@ func (s *Service) IndexSpace(spaceID *provider.StorageSpaceId, forceRescan bool)
 
 		searchRes, err := s.engine.Search(ownerCtx, &searchsvc.SearchIndexRequest{
 			Query: "id:" + storagespace.FormatResourceID(info.Id) + ` mtime>=` + utils.TSToTime(info.Mtime).Format(time.RFC3339Nano),
-		})
+		}, nil)
 
 		if err == nil && len(searchRes.Matches) >= 1 {
 			if info.Type == provider.ResourceType_RESOURCE_TYPE_CONTAINER {
@@ -796,7 +788,7 @@ func (s *Service) fetchExcludedPrefixes(ctx context.Context, rootID *searchmsg.R
 		Query:    "Name:" + _excludeMarkerName,
 		Ref:      &searchmsg.Reference{ResourceId: rootID},
 		PageSize: -1,
-	})
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -806,27 +798,7 @@ func (s *Service) fetchExcludedPrefixes(ctx context.Context, rootID *searchmsg.R
 		if p == "" {
 			continue
 		}
-		dir := path.Dir(p)
-		prefixes = append(prefixes, dir)
+		prefixes = append(prefixes, path.Dir(p))
 	}
 	return prefixes, nil
-}
-
-// isPathExcluded reports whether p sits at or beneath any of the excluded
-// directory prefixes. Prefixes are directory paths in the same form as
-// indexed Path values (e.g. "./photos/private", "." for the space root).
-func isPathExcluded(p string, excluded []string) bool {
-	if p == "" {
-		return false
-	}
-	for _, dir := range excluded {
-		if dir == "." || dir == "/" {
-			// marker at the space root excludes everything
-			return true
-		}
-		if p == dir || strings.HasPrefix(p, dir+"/") {
-			return true
-		}
-	}
-	return false
 }

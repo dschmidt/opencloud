@@ -66,7 +66,7 @@ func NewBackend(index string, client *opensearchgoAPI.Client) (*Backend, error) 
 	return &Backend{index: index, client: client}, nil
 }
 
-func (b *Backend) Search(ctx context.Context, sir *searchService.SearchIndexRequest) (*searchService.SearchIndexResponse, error) {
+func (b *Backend) Search(ctx context.Context, sir *searchService.SearchIndexRequest, excludedPathPrefixes []string) (*searchService.SearchIndexResponse, error) {
 	boolQuery, err := convert.KQLToOpenSearchBoolQuery(sir.Query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert KQL query to OpenSearch bool query: %w", err)
@@ -90,6 +90,12 @@ func (b *Backend) Search(ctx context.Context, sir *searchService.SearchIndexRequ
 				),
 			),
 		)
+	}
+
+	// exclude documents whose Path lies at or beneath one of the marker dirs
+	for _, dir := range excludedPathPrefixes {
+		boolQuery.MustNot(osu.NewTermQuery[string]("Path").Value(dir))
+		boolQuery.MustNot(osu.NewWildcardQuery("Path").Value(dir + "/*"))
 	}
 
 	searchParams := opensearchgoAPI.SearchParams{

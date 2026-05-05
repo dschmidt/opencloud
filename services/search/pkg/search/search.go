@@ -25,7 +25,11 @@ var scopeRegex = regexp.MustCompile(`scope:\s*([^" "\n\r]*)`)
 
 // Engine is the interface to the search engine
 type Engine interface {
-	Search(ctx context.Context, req *searchService.SearchIndexRequest) (*searchService.SearchIndexResponse, error)
+	// Search runs req against the index. excludedPathPrefixes lists
+	// directory paths (in indexed Path form, e.g. "./photos/private")
+	// whose contents must not appear in the result; the directory
+	// itself and all its descendants are excluded.
+	Search(ctx context.Context, req *searchService.SearchIndexRequest, excludedPathPrefixes []string) (*searchService.SearchIndexResponse, error)
 	DocCount() (uint64, error)
 
 	Upsert(id string, r Resource) error

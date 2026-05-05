@@ -48,7 +48,7 @@ func TestEngine_Search(t *testing.T) {
 	t.Run("most simple search", func(t *testing.T) {
 		resp, err := backend.Search(t.Context(), &searchService.SearchIndexRequest{
 			Query: fmt.Sprintf(`"%s"`, document.Name),
-		})
+		}, nil)
 		require.NoError(t, err)
 		require.Len(t, resp.Matches, 1)
 		require.Equal(t, int32(1), resp.TotalMatches)
@@ -65,7 +65,7 @@ func TestEngine_Search(t *testing.T) {
 
 		resp, err := backend.Search(t.Context(), &searchService.SearchIndexRequest{
 			Query: fmt.Sprintf(`"%s"`, document.Name),
-		})
+		}, nil)
 		require.NoError(t, err)
 		require.Len(t, resp.Matches, 1)
 		require.Equal(t, int32(1), resp.TotalMatches)

@@ -41,7 +41,7 @@ var _ = Describe("Bleve", func() {
 					},
 					Path: path,
 				},
-			})
+			}, nil)
 		}
 
 		assertDocCount = func(id string, query string, expectedCount int) []*searchmsg.Match {
