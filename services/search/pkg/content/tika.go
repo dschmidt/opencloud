@@ -1,8 +1,11 @@
 package content
 
 import (
+	"bytes"
 	"context"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -11,8 +14,8 @@ import (
 	gateway "github.com/cs3org/go-cs3apis/cs3/gateway/v1beta1"
 	provider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
 	"github.com/google/go-tika/tika"
-	"github.com/opencloud-eu/reva/v2/pkg/rgrpc/todo/pool"
 	libregraph "github.com/opencloud-eu/libre-graph-api-go"
+	"github.com/opencloud-eu/reva/v2/pkg/rgrpc/todo/pool"
 
 	"github.com/opencloud-eu/opencloud/pkg/log"
 	"github.com/opencloud-eu/opencloud/services/search/pkg/config"
@@ -77,7 +80,19 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 	}
 	defer data.Close()
 
-	metas, err := t.tika.MetaRecursive(ctx, data)
+	// Motion photos keep their metadata in vendor XMP that stock Tika does not
+	// expose (see getMotionPhoto). For images, buffer the head so we can read
+	// that XMP ourselves as a fallback; the rest still streams to Tika.
+	var xmpHead []byte
+	stream := io.Reader(data)
+	if strings.HasPrefix(ri.GetMimeType(), "image/") {
+		xmpHead = make([]byte, motionPhotoXMPScanLimit)
+		n, _ := io.ReadFull(data, xmpHead)
+		xmpHead = xmpHead[:n]
+		stream = io.MultiReader(bytes.NewReader(xmpHead), data)
+	}
+
+	metas, err := t.tika.MetaRecursive(ctx, stream)
 	if err != nil {
 		return doc, err
 	}
@@ -94,10 +109,16 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 		doc.Location = t.getLocation(meta)
 		doc.Image = t.getImage(meta)
 		doc.Photo = t.getPhoto(meta)
+		doc.MotionPhoto = t.getMotionPhoto(meta)
 
 		if contentType, err := getFirstValue(meta, "Content-Type"); err == nil && strings.HasPrefix(contentType, "audio/") {
 			doc.Audio = t.getAudio(meta)
 		}
+	}
+
+	// Tika did not surface the motion photo XMP: read it from the buffered head.
+	if doc.MotionPhoto == nil && xmpHead != nil {
+		doc.MotionPhoto = motionPhotoFromXMP(xmpHead)
 	}
 
 	if langCode, _ := t.tika.LanguageString(ctx, doc.Content); langCode != "" && t.CleanStopWords {
@@ -224,6 +245,162 @@ func (t Tika) getPhoto(meta map[string][]string) *libregraph.Photo {
 	}
 
 	return photo
+}
+
+// getMotionPhoto reads Google Motion Photo XMP, which Tika exposes under the
+// canonical Camera/Container prefixes. It covers both the current MotionPhoto
+// scheme and the legacy MicroVideo scheme. videoSize (the embedded video's byte
+// length, needed to range-fetch it) is required, so the facet is dropped without it.
+func (t Tika) getMotionPhoto(meta map[string][]string) *libregraph.MotionPhoto {
+	var motionPhoto *libregraph.MotionPhoto
+	initMotionPhoto := func() {
+		if motionPhoto == nil {
+			motionPhoto = libregraph.NewMotionPhoto()
+		}
+	}
+
+	if v, ok := firstValue(meta, "Camera:MotionPhotoVersion", "Camera:MicroVideoVersion"); ok {
+		if i, err := strconv.ParseInt(v, 0, 32); err == nil {
+			initMotionPhoto()
+			motionPhoto.SetVersion(int32(i))
+		}
+	}
+
+	if v, ok := firstValue(meta, "Camera:MotionPhotoPresentationTimestampUs", "Camera:MicroVideoPresentationTimestampUs"); ok {
+		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
+			initMotionPhoto()
+			motionPhoto.SetPresentationTimestampUs(i)
+		}
+	}
+
+	if size, ok := motionPhotoVideoSize(meta); ok {
+		initMotionPhoto()
+		motionPhoto.SetVideoSize(size)
+	}
+
+	if motionPhoto == nil || !motionPhoto.HasVideoSize() {
+		return nil
+	}
+	return motionPhoto
+}
+
+// motionPhotoVideoSize returns the embedded video's byte length. Legacy files
+// carry it as the MicroVideo offset (bytes from EOF to the video start, which
+// equals its length); current files expose it as the length of the Container
+// item whose semantic is "MotionPhoto".
+func motionPhotoVideoSize(meta map[string][]string) (int64, bool) {
+	if v, ok := firstValue(meta, "Camera:MicroVideoOffset"); ok {
+		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
+			return i, true
+		}
+	}
+	for k, vals := range meta {
+		if !strings.HasSuffix(k, "/Item:Semantic") || len(vals) == 0 || vals[0] != "MotionPhoto" {
+			continue
+		}
+		if v, ok := firstValue(meta, strings.TrimSuffix(k, "/Item:Semantic")+"/Item:Length"); ok {
+			if i, err := strconv.ParseInt(v, 0, 64); err == nil {
+				return i, true
+			}
+		}
+	}
+	return 0, false
+}
+
+const motionPhotoXMPScanLimit = 256 * 1024
+
+// motionPhotoFromXMP parses Google Motion Photo metadata directly from a file's
+// XMP packet, covering the current MotionPhoto scheme and the legacy MicroVideo
+// scheme. It matches on namespace URIs, so the declared prefix does not matter.
+// videoSize is required, so the facet is dropped without it.
+func motionPhotoFromXMP(data []byte) *libregraph.MotionPhoto {
+	const cameraNS = "http://ns.google.com/photos/1.0/camera/"
+	const itemNS = "http://ns.google.com/photos/1.0/container/item/"
+
+	packet := extractXMPPacket(data)
+	if packet == nil {
+		return nil
+	}
+
+	var motionPhoto *libregraph.MotionPhoto
+	initMotionPhoto := func() {
+		if motionPhoto == nil {
+			motionPhoto = libregraph.NewMotionPhoto()
+		}
+	}
+
+	decoder := xml.NewDecoder(bytes.NewReader(packet))
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			break
+		}
+		element, ok := token.(xml.StartElement)
+		if !ok {
+			continue
+		}
+
+		var itemSemantic, itemLength string
+		for _, attr := range element.Attr {
+			switch {
+			case attr.Name.Space == cameraNS && (attr.Name.Local == "MotionPhotoVersion" || attr.Name.Local == "MicroVideoVersion"):
+				if i, err := strconv.ParseInt(attr.Value, 10, 32); err == nil {
+					initMotionPhoto()
+					motionPhoto.SetVersion(int32(i))
+				}
+			case attr.Name.Space == cameraNS && (attr.Name.Local == "MotionPhotoPresentationTimestampUs" || attr.Name.Local == "MicroVideoPresentationTimestampUs"):
+				if i, err := strconv.ParseInt(attr.Value, 10, 64); err == nil {
+					initMotionPhoto()
+					motionPhoto.SetPresentationTimestampUs(i)
+				}
+			case attr.Name.Space == cameraNS && attr.Name.Local == "MicroVideoOffset":
+				if i, err := strconv.ParseInt(attr.Value, 10, 64); err == nil {
+					initMotionPhoto()
+					motionPhoto.SetVideoSize(i)
+				}
+			case attr.Name.Space == itemNS && attr.Name.Local == "Semantic":
+				itemSemantic = attr.Value
+			case attr.Name.Space == itemNS && attr.Name.Local == "Length":
+				itemLength = attr.Value
+			}
+		}
+		// current format: the video is the container item whose semantic is MotionPhoto.
+		if itemSemantic == "MotionPhoto" && itemLength != "" {
+			if i, err := strconv.ParseInt(itemLength, 10, 64); err == nil {
+				initMotionPhoto()
+				motionPhoto.SetVideoSize(i)
+			}
+		}
+	}
+
+	if motionPhoto == nil || !motionPhoto.HasVideoSize() {
+		return nil
+	}
+	return motionPhoto
+}
+
+// extractXMPPacket returns the <x:xmpmeta> element from a file's leading bytes,
+// or nil when none is present.
+func extractXMPPacket(data []byte) []byte {
+	start := bytes.Index(data, []byte("<x:xmpmeta"))
+	if start < 0 {
+		return nil
+	}
+	end := bytes.Index(data[start:], []byte("</x:xmpmeta>"))
+	if end < 0 {
+		return nil
+	}
+	return data[start : start+end+len("</x:xmpmeta>")]
+}
+
+// firstValue returns the first metadata value present among keys.
+func firstValue(meta map[string][]string, keys ...string) (string, bool) {
+	for _, k := range keys {
+		if v, err := getFirstValue(meta, k); err == nil {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func (t Tika) getAudio(meta map[string][]string) *libregraph.Audio {

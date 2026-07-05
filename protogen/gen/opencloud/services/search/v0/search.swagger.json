@@ -288,6 +288,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "motionPhoto": {
+          "$ref": "#/definitions/v0MotionPhoto"
         }
       }
     },
@@ -349,6 +352,23 @@
           "type": "number",
           "format": "float",
           "title": "the match score"
+        }
+      }
+    },
+    "v0MotionPhoto": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "presentationTimestampUs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "videoSize": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },

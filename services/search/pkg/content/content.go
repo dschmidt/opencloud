@@ -14,18 +14,19 @@ func init() {
 // Document wraps all resource meta fields,
 // it is used as a content extraction result.
 type Document struct {
-	Title     string                     `json:"Title"`
-	Name      string                     `json:"Name"`
-	Content   string                     `json:"Content"`
-	Size      uint64                     `json:"Size"`
-	Mtime     string                     `json:"Mtime"`
-	MimeType  string                     `json:"MimeType"`
-	Tags      []string                   `json:"Tags"`
-	Favorites []string                   `json:"Favorites"`
-	Audio     *libregraph.Audio          `json:"audio,omitempty"`
-	Image     *libregraph.Image          `json:"image,omitempty"`
-	Location  *libregraph.GeoCoordinates `json:"location,omitempty"`
-	Photo     *libregraph.Photo          `json:"photo,omitempty"`
+	Title       string                     `json:"Title"`
+	Name        string                     `json:"Name"`
+	Content     string                     `json:"Content"`
+	Size        uint64                     `json:"Size"`
+	Mtime       string                     `json:"Mtime"`
+	MimeType    string                     `json:"MimeType"`
+	Tags        []string                   `json:"Tags"`
+	Favorites   []string                   `json:"Favorites"`
+	Audio       *libregraph.Audio          `json:"audio,omitempty"`
+	Image       *libregraph.Image          `json:"image,omitempty"`
+	Location    *libregraph.GeoCoordinates `json:"location,omitempty"`
+	Photo       *libregraph.Photo          `json:"photo,omitempty"`
+	MotionPhoto *libregraph.MotionPhoto    `json:"motionPhoto,omitempty"`
 }
 
 func CleanString(content, langCode string) string {
