@@ -65,8 +65,11 @@ type DriveItem struct {
 	Permissions []Permission `json:"permissions,omitempty"`
 	Audio *Audio `json:"audio,omitempty"`
 	Video *Video `json:"video,omitempty"`
+	LibreGraphMotionPhoto *MotionPhoto `json:"@libre.graph.motionPhoto,omitempty"`
 	// Indicates if the item is synchronized with the underlying storage provider. Read-only.
 	ClientSynchronize *bool `json:"@client.synchronize,omitempty"`
+	// A pre-authenticated URL that can be used to download the item's content without providing an Authorization header. The URL is short-lived and cannot be cached.  This annotation is only populated when explicitly requested via `$select`, and only for items that have a `file` facet. The returned URL is valid for a limited time and should be used promptly. 
+	MicrosoftGraphDownloadUrl *string `json:"@microsoft.graph.downloadUrl,omitempty"`
 	// Properties or facets (see UI.Facet) annotated with this term will not be rendered if the annotation evaluates to true. Users can set this to hide permissions.
 	UIHidden *bool `json:"@UI.Hidden,omitempty"`
 }
@@ -1048,6 +1051,38 @@ func (o *DriveItem) SetVideo(v Video) {
 	o.Video = &v
 }
 
+// GetLibreGraphMotionPhoto returns the LibreGraphMotionPhoto field value if set, zero value otherwise.
+func (o *DriveItem) GetLibreGraphMotionPhoto() MotionPhoto {
+	if o == nil || IsNil(o.LibreGraphMotionPhoto) {
+		var ret MotionPhoto
+		return ret
+	}
+	return *o.LibreGraphMotionPhoto
+}
+
+// GetLibreGraphMotionPhotoOk returns a tuple with the LibreGraphMotionPhoto field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DriveItem) GetLibreGraphMotionPhotoOk() (*MotionPhoto, bool) {
+	if o == nil || IsNil(o.LibreGraphMotionPhoto) {
+		return nil, false
+	}
+	return o.LibreGraphMotionPhoto, true
+}
+
+// HasLibreGraphMotionPhoto returns a boolean if a field has been set.
+func (o *DriveItem) HasLibreGraphMotionPhoto() bool {
+	if o != nil && !IsNil(o.LibreGraphMotionPhoto) {
+		return true
+	}
+
+	return false
+}
+
+// SetLibreGraphMotionPhoto gets a reference to the given MotionPhoto and assigns it to the LibreGraphMotionPhoto field.
+func (o *DriveItem) SetLibreGraphMotionPhoto(v MotionPhoto) {
+	o.LibreGraphMotionPhoto = &v
+}
+
 // GetClientSynchronize returns the ClientSynchronize field value if set, zero value otherwise.
 func (o *DriveItem) GetClientSynchronize() bool {
 	if o == nil || IsNil(o.ClientSynchronize) {
@@ -1078,6 +1113,38 @@ func (o *DriveItem) HasClientSynchronize() bool {
 // SetClientSynchronize gets a reference to the given bool and assigns it to the ClientSynchronize field.
 func (o *DriveItem) SetClientSynchronize(v bool) {
 	o.ClientSynchronize = &v
+}
+
+// GetMicrosoftGraphDownloadUrl returns the MicrosoftGraphDownloadUrl field value if set, zero value otherwise.
+func (o *DriveItem) GetMicrosoftGraphDownloadUrl() string {
+	if o == nil || IsNil(o.MicrosoftGraphDownloadUrl) {
+		var ret string
+		return ret
+	}
+	return *o.MicrosoftGraphDownloadUrl
+}
+
+// GetMicrosoftGraphDownloadUrlOk returns a tuple with the MicrosoftGraphDownloadUrl field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DriveItem) GetMicrosoftGraphDownloadUrlOk() (*string, bool) {
+	if o == nil || IsNil(o.MicrosoftGraphDownloadUrl) {
+		return nil, false
+	}
+	return o.MicrosoftGraphDownloadUrl, true
+}
+
+// HasMicrosoftGraphDownloadUrl returns a boolean if a field has been set.
+func (o *DriveItem) HasMicrosoftGraphDownloadUrl() bool {
+	if o != nil && !IsNil(o.MicrosoftGraphDownloadUrl) {
+		return true
+	}
+
+	return false
+}
+
+// SetMicrosoftGraphDownloadUrl gets a reference to the given string and assigns it to the MicrosoftGraphDownloadUrl field.
+func (o *DriveItem) SetMicrosoftGraphDownloadUrl(v string) {
+	o.MicrosoftGraphDownloadUrl = &v
 }
 
 // GetUIHidden returns the UIHidden field value if set, zero value otherwise.
@@ -1212,8 +1279,14 @@ func (o DriveItem) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Video) {
 		toSerialize["video"] = o.Video
 	}
+	if !IsNil(o.LibreGraphMotionPhoto) {
+		toSerialize["@libre.graph.motionPhoto"] = o.LibreGraphMotionPhoto
+	}
 	if !IsNil(o.ClientSynchronize) {
 		toSerialize["@client.synchronize"] = o.ClientSynchronize
+	}
+	if !IsNil(o.MicrosoftGraphDownloadUrl) {
+		toSerialize["@microsoft.graph.downloadUrl"] = o.MicrosoftGraphDownloadUrl
 	}
 	if !IsNil(o.UIHidden) {
 		toSerialize["@UI.Hidden"] = o.UIHidden
