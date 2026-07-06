@@ -1,6 +1,7 @@
 package content_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -20,6 +21,10 @@ import (
 	"github.com/opencloud-eu/opencloud/services/search/pkg/content"
 	contentMocks "github.com/opencloud-eu/opencloud/services/search/pkg/content/mocks"
 )
+
+// validMP4Header is a minimal ISO base media "ftyp" box, used to stub the tail
+// read that confirms a motion photo really contains a video.
+var validMP4Header = []byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'}
 
 var _ = Describe("Tika", func() {
 	Describe("extract", func() {
@@ -66,6 +71,9 @@ var _ = Describe("Tika", func() {
 
 			retriever := &contentMocks.Retriever{}
 			retriever.On("Retrieve", mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(strings.NewReader(body)), nil)
+			// By default the trailing bytes look like a real video so the motion
+			// photo facet survives validation; tests that need otherwise override this.
+			retriever.On("RetrieveRange", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(bytes.NewReader(validMP4Header)), nil)
 
 			tika.Retriever = retriever
 		})
@@ -226,7 +234,7 @@ var _ = Describe("Tika", func() {
 			]`
 			doc, err := tika.Extract(context.TODO(), &provider.ResourceInfo{
 				Type: provider.ResourceType_RESOURCE_TYPE_FILE,
-				Size: 1,
+				Size: 2 * 1024 * 1024,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -250,7 +258,7 @@ var _ = Describe("Tika", func() {
 			]`
 			doc, err := tika.Extract(context.TODO(), &provider.ResourceInfo{
 				Type: provider.ResourceType_RESOURCE_TYPE_FILE,
-				Size: 1,
+				Size: 2 * 1024 * 1024,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -291,11 +299,12 @@ var _ = Describe("Tika", func() {
 
 			retriever := &contentMocks.Retriever{}
 			retriever.On("Retrieve", mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(strings.NewReader(xmp)), nil)
+			retriever.On("RetrieveRange", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(bytes.NewReader(validMP4Header)), nil)
 			tika.Retriever = retriever
 
 			doc, err := tika.Extract(context.TODO(), &provider.ResourceInfo{
 				Type:     provider.ResourceType_RESOURCE_TYPE_FILE,
-				Size:     1,
+				Size:     2 * 1024 * 1024,
 				MimeType: "image/jpeg",
 			})
 			Expect(err).ToNot(HaveOccurred())
@@ -305,6 +314,50 @@ var _ = Describe("Tika", func() {
 			Expect(motionPhoto.Version).To(Equal(libregraph.PtrInt32(1)))
 			Expect(motionPhoto.PresentationTimestampUs).To(Equal(libregraph.PtrInt64(500000)))
 			Expect(motionPhoto.VideoSize).To(Equal(libregraph.PtrInt64(122562)))
+		})
+
+		It("drops a motion photo when the file is not larger than the video", func() {
+			// A photos.google.com share strips the appended video but keeps the XMP,
+			// leaving a file smaller than the advertised video. Caught without any IO.
+			fullResponse = `[
+				{
+					"Camera:MotionPhotoVersion": "1",
+					"Camera:MotionPhotoPresentationTimestampUs": "500000",
+					"Container:Directory[2]/Item:Semantic": "MotionPhoto",
+					"Container:Directory[2]/Item:Length": "122562"
+				}
+			]`
+			doc, err := tika.Extract(context.TODO(), &provider.ResourceInfo{
+				Type: provider.ResourceType_RESOURCE_TYPE_FILE,
+				Size: 1000,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(doc.MotionPhoto).To(BeNil())
+		})
+
+		It("drops a motion photo when the trailing bytes are not a video", func() {
+			// videoSize fits the file, but the bytes at the video offset are not an
+			// MP4 (the video was stripped and the file is a larger plain JPEG).
+			fullResponse = `[
+				{
+					"Camera:MotionPhotoVersion": "1",
+					"Camera:MotionPhotoPresentationTimestampUs": "500000",
+					"Container:Directory[2]/Item:Semantic": "MotionPhoto",
+					"Container:Directory[2]/Item:Length": "122562"
+				}
+			]`
+
+			retriever := &contentMocks.Retriever{}
+			retriever.On("Retrieve", mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(strings.NewReader(body)), nil)
+			retriever.On("RetrieveRange", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(strings.NewReader("\xff\xd8\xff\xe0not a video")), nil)
+			tika.Retriever = retriever
+
+			doc, err := tika.Extract(context.TODO(), &provider.ResourceInfo{
+				Type: provider.ResourceType_RESOURCE_TYPE_FILE,
+				Size: 2 * 1024 * 1024,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(doc.MotionPhoto).To(BeNil())
 		})
 
 		It("removes stop words", func() {

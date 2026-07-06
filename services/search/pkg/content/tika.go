@@ -121,6 +121,13 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 		doc.MotionPhoto = motionPhotoFromXMP(xmpHead)
 	}
 
+	// Only expose the facet if the file really contains the video the XMP claims.
+	// Sharing a photo via photos.google.com strips the appended video but keeps
+	// the XMP, which would otherwise surface an unplayable motion photo.
+	if doc.MotionPhoto != nil && !t.motionPhotoHasVideo(ctx, ri, doc.MotionPhoto.GetVideoSize()) {
+		doc.MotionPhoto = nil
+	}
+
 	if langCode, _ := t.tika.LanguageString(ctx, doc.Content); langCode != "" && t.CleanStopWords {
 		doc.Content = CleanString(doc.Content, langCode)
 	}
@@ -282,6 +289,40 @@ func (t Tika) getMotionPhoto(meta map[string][]string) *libregraph.MotionPhoto {
 		return nil
 	}
 	return motionPhoto
+}
+
+// motionPhotoVideoSignatureLen is the number of trailing bytes we read to confirm
+// an actual video is present. Enough to cover the ISO base media (MP4) box size
+// and the "ftyp" box type at bytes [4:8].
+const motionPhotoVideoSignatureLen = 12
+
+// looksLikeMP4 reports whether buf begins with an ISO base media (MP4/QuickTime)
+// "ftyp" box, which Google Motion Photo and legacy MicroVideo clips start with.
+func looksLikeMP4(buf []byte) bool {
+	return len(buf) >= 8 && string(buf[4:8]) == "ftyp"
+}
+
+// motionPhotoHasVideo confirms that the file actually contains the embedded video
+// the XMP advertises. A photos.google.com share strips the appended video but
+// keeps the XMP, which would otherwise make us expose an unplayable facet. The
+// video is appended at the end, so it starts at fileSize-videoSize; we read a few
+// bytes there and require an MP4 signature.
+func (t Tika) motionPhotoHasVideo(ctx context.Context, ri *provider.ResourceInfo, videoSize int64) bool {
+	size := int64(ri.GetSize())
+	if videoSize <= 0 || videoSize >= size {
+		return false
+	}
+
+	rc, err := t.RetrieveRange(ctx, ri.GetId(), size-videoSize, motionPhotoVideoSignatureLen)
+	if err != nil {
+		t.logger.Debug().Err(err).Interface("ResourceID", ri.GetId()).Msg("could not read motion photo video header, dropping facet")
+		return false
+	}
+	defer rc.Close()
+
+	buf := make([]byte, motionPhotoVideoSignatureLen)
+	n, _ := io.ReadFull(rc, buf)
+	return looksLikeMP4(buf[:n])
 }
 
 // motionPhotoVideoSize returns the embedded video's byte length. Legacy files
