@@ -107,6 +107,11 @@ var (
 		"orientation",
 		"takenDateTime",
 	}
+	motionPhotoKeys = []string{
+		"version",
+		"presentationTimestampUs",
+		"videoSize",
+	}
 )
 
 type countingReader struct {
@@ -887,6 +892,8 @@ func metadataKeys(pf XML) ([]string, []string) {
 					metadataKeys = append(metadataKeys, metadataKeysWithPrefix("libre.graph.image", imageKeys)...)
 				case "http://owncloud.org/ns/photo":
 					metadataKeys = append(metadataKeys, metadataKeysWithPrefix("libre.graph.photo", photoKeys)...)
+				case "http://owncloud.org/ns/motionPhoto":
+					metadataKeys = append(metadataKeys, metadataKeysWithPrefix("libre.graph.motionPhoto", motionPhotoKeys)...)
 				default:
 					metadataKeys = append(metadataKeys, key)
 				}
@@ -944,7 +951,7 @@ func requiresExplicitFetching(n *xml.Name) bool {
 		}
 	case net.NsOwncloud:
 		switch n.Local {
-		case "favorite", "share-types", "checksums", "size", "tags", "audio", "location", "image", "photo":
+		case "favorite", "share-types", "checksums", "size", "tags", "audio", "location", "image", "photo", "motionPhoto":
 			return true
 		default:
 			return false
@@ -1292,6 +1299,7 @@ func mdToPropResponse(ctx context.Context, pf *XML, md *provider.ResourceInfo, p
 			appendMetadataProp(k, "oc", "location", "libre.graph.location", locationKeys)
 			appendMetadataProp(k, "oc", "image", "libre.graph.image", imageKeys)
 			appendMetadataProp(k, "oc", "photo", "libre.graph.photo", photoKeys)
+			appendMetadataProp(k, "oc", "motionPhoto", "libre.graph.motionPhoto", motionPhotoKeys)
 		}
 
 		if md.Type == provider.ResourceType_RESOURCE_TYPE_CONTAINER {
@@ -1578,6 +1586,10 @@ func mdToPropResponse(ctx context.Context, pf *XML, md *provider.ResourceInfo, p
 				case "photo":
 					if k := md.GetArbitraryMetadata().GetMetadata(); k != nil {
 						appendMetadataProp(k, "oc", "photo", "libre.graph.photo", photoKeys)
+					}
+				case "motionPhoto":
+					if k := md.GetArbitraryMetadata().GetMetadata(); k != nil {
+						appendMetadataProp(k, "oc", "motionPhoto", "libre.graph.motionPhoto", motionPhotoKeys)
 					}
 				case "name":
 					appendToOK(prop.Escaped("oc:name", md.Name))
