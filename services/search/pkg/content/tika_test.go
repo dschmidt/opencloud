@@ -285,37 +285,6 @@ var _ = Describe("Tika", func() {
 			Expect(doc.MotionPhoto).To(BeNil())
 		})
 
-		It("reads the motion photo XMP directly when Tika does not expose it", func() {
-			xmp := `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">` +
-				`<rdf:Description rdf:about="" ` +
-				`xmlns:Camera="http://ns.google.com/photos/1.0/camera/" ` +
-				`xmlns:Container="http://ns.google.com/photos/1.0/container/" ` +
-				`xmlns:Item="http://ns.google.com/photos/1.0/container/item/" ` +
-				`Camera:MotionPhoto="1" Camera:MotionPhotoVersion="1" Camera:MotionPhotoPresentationTimestampUs="500000">` +
-				`<Container:Directory><rdf:Seq>` +
-				`<rdf:li><Container:Item Item:Semantic="Primary" Item:Mime="image/jpeg"/></rdf:li>` +
-				`<rdf:li><Container:Item Item:Semantic="MotionPhoto" Item:Mime="video/mp4" Item:Length="122562"/></rdf:li>` +
-				`</rdf:Seq></Container:Directory></rdf:Description></rdf:RDF></x:xmpmeta>`
-
-			retriever := &contentMocks.Retriever{}
-			retriever.On("Retrieve", mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(strings.NewReader(xmp)), nil)
-			retriever.On("RetrieveRange", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(bytes.NewReader(validMP4Header)), nil)
-			tika.Retriever = retriever
-
-			doc, err := tika.Extract(context.TODO(), &provider.ResourceInfo{
-				Type:     provider.ResourceType_RESOURCE_TYPE_FILE,
-				Size:     2 * 1024 * 1024,
-				MimeType: "image/jpeg",
-			})
-			Expect(err).ToNot(HaveOccurred())
-
-			motionPhoto := doc.MotionPhoto
-			Expect(motionPhoto).ToNot(BeNil())
-			Expect(motionPhoto.Version).To(Equal(libregraph.PtrInt32(1)))
-			Expect(motionPhoto.PresentationTimestampUs).To(Equal(libregraph.PtrInt64(500000)))
-			Expect(motionPhoto.VideoSize).To(Equal(libregraph.PtrInt64(122562)))
-		})
-
 		It("drops a motion photo when the file is not larger than the video", func() {
 			// A photos.google.com share strips the appended video but keeps the XMP,
 			// leaving a file smaller than the advertised video. Caught without any IO.

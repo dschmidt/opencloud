@@ -1,9 +1,7 @@
 package content
 
 import (
-	"bytes"
 	"context"
-	"encoding/xml"
 	"io"
 	"strconv"
 	"strings"
@@ -11,10 +9,6 @@ import (
 	provider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
 	libregraph "github.com/opencloud-eu/libre-graph-api-go"
 )
-
-// motionPhotoXMPScanLimit is how many leading bytes of an image we buffer to look
-// for the Google Motion Photo XMP packet when Tika does not surface it.
-const motionPhotoXMPScanLimit = 256 * 1024
 
 // motionPhotoVideoSignatureLen is the number of trailing bytes we read to confirm
 // an actual video is present. Enough to cover the ISO base media (MP4) box size
@@ -89,90 +83,6 @@ func motionPhotoVideoSize(meta map[string][]string) (int64, bool) {
 		}
 	}
 	return 0, false
-}
-
-// motionPhotoFromXMP parses Google Motion Photo metadata directly from a file's
-// XMP packet, covering the current MotionPhoto scheme and the legacy MicroVideo
-// scheme. It matches on namespace URIs, so the declared prefix does not matter.
-// videoSize is required, so the facet is dropped without it.
-func motionPhotoFromXMP(data []byte) *libregraph.MotionPhoto {
-	const cameraNS = "http://ns.google.com/photos/1.0/camera/"
-	const itemNS = "http://ns.google.com/photos/1.0/container/item/"
-
-	packet := extractXMPPacket(data)
-	if packet == nil {
-		return nil
-	}
-
-	var motionPhoto *libregraph.MotionPhoto
-	initMotionPhoto := func() {
-		if motionPhoto == nil {
-			motionPhoto = libregraph.NewMotionPhoto()
-		}
-	}
-
-	decoder := xml.NewDecoder(bytes.NewReader(packet))
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			break
-		}
-		element, ok := token.(xml.StartElement)
-		if !ok {
-			continue
-		}
-
-		var itemSemantic, itemLength string
-		for _, attr := range element.Attr {
-			switch {
-			case attr.Name.Space == cameraNS && (attr.Name.Local == "MotionPhotoVersion" || attr.Name.Local == "MicroVideoVersion"):
-				if i, err := strconv.ParseInt(attr.Value, 10, 32); err == nil {
-					initMotionPhoto()
-					motionPhoto.SetVersion(int32(i))
-				}
-			case attr.Name.Space == cameraNS && (attr.Name.Local == "MotionPhotoPresentationTimestampUs" || attr.Name.Local == "MicroVideoPresentationTimestampUs"):
-				if i, err := strconv.ParseInt(attr.Value, 10, 64); err == nil {
-					initMotionPhoto()
-					motionPhoto.SetPresentationTimestampUs(i)
-				}
-			case attr.Name.Space == cameraNS && attr.Name.Local == "MicroVideoOffset":
-				if i, err := strconv.ParseInt(attr.Value, 10, 64); err == nil {
-					initMotionPhoto()
-					motionPhoto.SetVideoSize(i)
-				}
-			case attr.Name.Space == itemNS && attr.Name.Local == "Semantic":
-				itemSemantic = attr.Value
-			case attr.Name.Space == itemNS && attr.Name.Local == "Length":
-				itemLength = attr.Value
-			}
-		}
-		// current format: the video is the container item whose semantic is MotionPhoto.
-		if itemSemantic == "MotionPhoto" && itemLength != "" {
-			if i, err := strconv.ParseInt(itemLength, 10, 64); err == nil {
-				initMotionPhoto()
-				motionPhoto.SetVideoSize(i)
-			}
-		}
-	}
-
-	if motionPhoto == nil || !motionPhoto.HasVideoSize() {
-		return nil
-	}
-	return motionPhoto
-}
-
-// extractXMPPacket returns the <x:xmpmeta> element from a file's leading bytes,
-// or nil when none is present.
-func extractXMPPacket(data []byte) []byte {
-	start := bytes.Index(data, []byte("<x:xmpmeta"))
-	if start < 0 {
-		return nil
-	}
-	end := bytes.Index(data[start:], []byte("</x:xmpmeta>"))
-	if end < 0 {
-		return nil
-	}
-	return data[start : start+end+len("</x:xmpmeta>")]
 }
 
 // looksLikeMP4 reports whether buf begins with an ISO base media (MP4/QuickTime)

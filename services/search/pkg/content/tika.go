@@ -1,10 +1,8 @@
 package content
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -79,19 +77,7 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 	}
 	defer data.Close()
 
-	// Motion photos keep their metadata in vendor XMP that stock Tika does not
-	// expose (see getMotionPhoto). For images, buffer the head so we can read
-	// that XMP ourselves as a fallback; the rest still streams to Tika.
-	var xmpHead []byte
-	stream := io.Reader(data)
-	if strings.HasPrefix(ri.GetMimeType(), "image/") {
-		xmpHead = make([]byte, motionPhotoXMPScanLimit)
-		n, _ := io.ReadFull(data, xmpHead)
-		xmpHead = xmpHead[:n]
-		stream = io.MultiReader(bytes.NewReader(xmpHead), data)
-	}
-
-	metas, err := t.tika.MetaRecursive(ctx, stream)
+	metas, err := t.tika.MetaRecursive(ctx, data)
 	if err != nil {
 		return doc, err
 	}
@@ -113,11 +99,6 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 		if contentType, err := getFirstValue(meta, "Content-Type"); err == nil && strings.HasPrefix(contentType, "audio/") {
 			doc.Audio = t.getAudio(meta)
 		}
-	}
-
-	// Tika did not surface the motion photo XMP: read it from the buffered head.
-	if doc.MotionPhoto == nil && xmpHead != nil {
-		doc.MotionPhoto = motionPhotoFromXMP(xmpHead)
 	}
 
 	// Only expose the facet if the file really contains the video the XMP claims.
