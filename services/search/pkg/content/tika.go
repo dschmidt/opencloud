@@ -90,16 +90,14 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 		doc.Location = t.getLocation(meta)
 		doc.Image = t.getImage(meta)
 		doc.Photo = t.getPhoto(meta)
-		doc.MotionPhoto = t.getMotionPhoto(meta)
 
 		if contentType, err := getFirstValue(meta, "Content-Type"); err == nil && strings.HasPrefix(contentType, "audio/") {
 			doc.Audio = t.getAudio(meta)
 		}
+
+		doc.MotionPhoto = t.getMotionPhoto(meta)
 	}
 
-	// Only expose the facet if the file really contains the video the XMP claims.
-	// Sharing a photo via photos.google.com strips the appended video but keeps
-	// the XMP, which would otherwise surface an unplayable motion photo.
 	if doc.MotionPhoto != nil && !t.motionPhotoHasVideo(ctx, ri, doc.MotionPhoto.GetVideoSize()) {
 		doc.MotionPhoto = nil
 	}
