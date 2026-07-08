@@ -15,16 +15,6 @@ import (
 // and the "ftyp" box type at bytes [4:8].
 const motionPhotoVideoSignatureLen = 12
 
-// firstValue returns the first metadata value present among keys.
-func firstValue(meta map[string][]string, keys ...string) (string, bool) {
-	for _, k := range keys {
-		if v, err := getFirstValue(meta, k); err == nil {
-			return v, true
-		}
-	}
-	return "", false
-}
-
 // getMotionPhoto reads Google Motion Photo XMP, which Tika exposes under the
 // canonical Camera/Container prefixes. It covers both the current MotionPhoto
 // scheme and the legacy MicroVideo scheme. videoSize (the embedded video's byte
@@ -37,14 +27,14 @@ func (t Tika) getMotionPhoto(meta map[string][]string) *libregraph.MotionPhoto {
 		}
 	}
 
-	if v, ok := firstValue(meta, "Camera:MotionPhotoVersion", "Camera:MicroVideoVersion"); ok {
+	if v, err := getFirstValue(meta, "Camera:MotionPhotoVersion", "Camera:MicroVideoVersion"); err == nil {
 		if i, err := strconv.ParseInt(v, 0, 32); err == nil {
 			initMotionPhoto()
 			motionPhoto.SetVersion(int32(i))
 		}
 	}
 
-	if v, ok := firstValue(meta, "Camera:MotionPhotoPresentationTimestampUs", "Camera:MicroVideoPresentationTimestampUs"); ok {
+	if v, err := getFirstValue(meta, "Camera:MotionPhotoPresentationTimestampUs", "Camera:MicroVideoPresentationTimestampUs"); err == nil {
 		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
 			initMotionPhoto()
 			motionPhoto.SetPresentationTimestampUs(i)
@@ -67,7 +57,7 @@ func (t Tika) getMotionPhoto(meta map[string][]string) *libregraph.MotionPhoto {
 // equals its length); current files expose it as the length of the Container
 // item whose semantic is "MotionPhoto".
 func motionPhotoVideoSize(meta map[string][]string) (int64, bool) {
-	if v, ok := firstValue(meta, "Camera:MicroVideoOffset"); ok {
+	if v, err := getFirstValue(meta, "Camera:MicroVideoOffset"); err == nil {
 		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
 			return i, true
 		}
@@ -76,7 +66,7 @@ func motionPhotoVideoSize(meta map[string][]string) (int64, bool) {
 		if !strings.HasSuffix(k, "/Item:Semantic") || len(vals) == 0 || vals[0] != "MotionPhoto" {
 			continue
 		}
-		if v, ok := firstValue(meta, strings.TrimSuffix(k, "/Item:Semantic")+"/Item:Length"); ok {
+		if v, err := getFirstValue(meta, strings.TrimSuffix(k, "/Item:Semantic")+"/Item:Length"); err == nil {
 			if i, err := strconv.ParseInt(v, 0, 64); err == nil {
 				return i, true
 			}
