@@ -294,6 +294,29 @@ var _ = Describe("Driveitems", func() {
 				Expect(res.Value[0].Audio).To(BeNil())
 				Expect(res.Value[0].Location).To(BeNil())
 				Expect(res.Value[0].LibreGraphMeFollowing).To(BeNil())
+				Expect(res.Value[0].LibreGraphTags).To(BeNil())
+			})
+
+			It("returns tags if metadata is available", func() {
+				gatewayClient.On("ListContainer", mock.Anything, mock.Anything).Return(&provider.ListContainerResponse{
+					Status: status.NewOK(ctx),
+					Infos: []*provider.ResourceInfo{
+						{
+							Type:  provider.ResourceType_RESOURCE_TYPE_FILE,
+							Id:    &provider.ResourceId{StorageId: "storageid", SpaceId: "spaceid", OpaqueId: "opaqueid"},
+							Etag:  "etag",
+							Mtime: utils.TimeToTS(mtime),
+							ArbitraryMetadata: &provider.ArbitraryMetadata{
+								Metadata: map[string]string{
+									"tags": "marketing,important",
+								},
+							},
+						},
+					},
+				}, nil)
+
+				res := assertItemsList(1)
+				Expect(res.Value[0].GetLibreGraphTags()).To(ConsistOf("marketing", "important"))
 			})
 
 			It("returns the following state if metadata is available", func() {

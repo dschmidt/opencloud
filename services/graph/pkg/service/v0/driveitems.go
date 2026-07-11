@@ -24,6 +24,7 @@ import (
 
 	revactx "github.com/opencloud-eu/reva/v2/pkg/ctx"
 	"github.com/opencloud-eu/reva/v2/pkg/storagespace"
+	"github.com/opencloud-eu/reva/v2/pkg/tags"
 	"github.com/opencloud-eu/reva/v2/pkg/utils"
 
 	"github.com/opencloud-eu/opencloud/pkg/log"
@@ -460,6 +461,9 @@ func cs3ResourceToDriveItem(logger *log.Logger, publicBaseURL *url.URL, res *sto
 
 		m := res.GetArbitraryMetadata().GetMetadata()
 		driveItem.LibreGraphMeFollowing = libregraph.PtrBool(m[_favoriteMetadataKey] == "1")
+		if t := m["tags"]; t != "" {
+			driveItem.LibreGraphTags = tags.New(t).AsSlice()
+		}
 	}
 
 	return driveItem, nil
