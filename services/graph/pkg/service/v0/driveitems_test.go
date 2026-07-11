@@ -293,6 +293,48 @@ var _ = Describe("Driveitems", func() {
 				res := assertItemsList(1)
 				Expect(res.Value[0].Audio).To(BeNil())
 				Expect(res.Value[0].Location).To(BeNil())
+				Expect(res.Value[0].LibreGraphMeFollowing).To(BeNil())
+			})
+
+			It("returns the following state if metadata is available", func() {
+				gatewayClient.On("ListContainer", mock.Anything, mock.Anything).Return(&provider.ListContainerResponse{
+					Status: status.NewOK(ctx),
+					Infos: []*provider.ResourceInfo{
+						{
+							Type:  provider.ResourceType_RESOURCE_TYPE_FILE,
+							Id:    &provider.ResourceId{StorageId: "storageid", SpaceId: "spaceid", OpaqueId: "opaqueid"},
+							Etag:  "etag",
+							Mtime: utils.TimeToTS(mtime),
+							ArbitraryMetadata: &provider.ArbitraryMetadata{
+								Metadata: map[string]string{
+									"http://owncloud.org/ns/favorite": "1",
+								},
+							},
+						},
+					},
+				}, nil)
+
+				res := assertItemsList(1)
+				Expect(res.Value[0].GetLibreGraphMeFollowing()).To(BeTrue())
+			})
+
+			It("reports not following if the favorite flag is absent", func() {
+				gatewayClient.On("ListContainer", mock.Anything, mock.Anything).Return(&provider.ListContainerResponse{
+					Status: status.NewOK(ctx),
+					Infos: []*provider.ResourceInfo{
+						{
+							Type:              provider.ResourceType_RESOURCE_TYPE_FILE,
+							Id:                &provider.ResourceId{StorageId: "storageid", SpaceId: "spaceid", OpaqueId: "opaqueid"},
+							Etag:              "etag",
+							Mtime:             utils.TimeToTS(mtime),
+							ArbitraryMetadata: &provider.ArbitraryMetadata{Metadata: map[string]string{}},
+						},
+					},
+				}, nil)
+
+				res := assertItemsList(1)
+				Expect(res.Value[0].LibreGraphMeFollowing).ToNot(BeNil())
+				Expect(res.Value[0].GetLibreGraphMeFollowing()).To(BeFalse())
 			})
 
 			It("returns the audio facet if metadata is available", func() {

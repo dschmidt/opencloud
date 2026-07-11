@@ -457,6 +457,9 @@ func cs3ResourceToDriveItem(logger *log.Logger, publicBaseURL *url.URL, res *sto
 		driveItem.Image = cs3ResourceToDriveItemImageFacet(logger, res)
 		driveItem.Location = cs3ResourceToDriveItemLocationFacet(logger, res)
 		driveItem.Photo = cs3ResourceToDriveItemPhotoFacet(logger, res)
+
+		m := res.GetArbitraryMetadata().GetMetadata()
+		driveItem.LibreGraphMeFollowing = libregraph.PtrBool(m[_favoriteMetadataKey] == "1")
 	}
 
 	return driveItem, nil
