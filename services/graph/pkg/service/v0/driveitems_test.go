@@ -31,6 +31,7 @@ import (
 	"github.com/opencloud-eu/opencloud/services/graph/pkg/config/defaults"
 	identitymocks "github.com/opencloud-eu/opencloud/services/graph/pkg/identity/mocks"
 	service "github.com/opencloud-eu/opencloud/services/graph/pkg/service/v0"
+	"github.com/opencloud-eu/opencloud/services/graph/pkg/unifiedrole"
 )
 
 type itemsList struct {
@@ -196,6 +197,43 @@ var _ = Describe("Driveitems", func() {
 			Expect(res.Value[0].GetLastModifiedDateTime().Equal(mtime)).To(BeTrue())
 			Expect(res.Value[0].GetETag()).To(Equal("etag"))
 			Expect(res.Value[0].GetId()).To(Equal("storageid$spaceid!opaqueid"))
+			Expect(res.Value[0].LibreGraphPermissionsActionsAllowedValues).To(BeNil())
+		})
+
+		It("returns the allowed actions when requested via $select", func() {
+			gatewayClient.On("ListStorageSpaces", mock.Anything, mock.Anything).Return(&provider.ListStorageSpacesResponse{
+				Status:        status.NewOK(ctx),
+				StorageSpaces: []*provider.StorageSpace{{Owner: currentUser, Root: &provider.ResourceId{}}},
+			}, nil)
+			gatewayClient.On("ListContainer", mock.Anything, mock.Anything).Return(&provider.ListContainerResponse{
+				Status: status.NewOK(ctx),
+				Infos: []*provider.ResourceInfo{
+					{
+						Type:  provider.ResourceType_RESOURCE_TYPE_FILE,
+						Id:    &provider.ResourceId{StorageId: "storageid", SpaceId: "spaceid", OpaqueId: "opaqueid"},
+						Etag:  "etag",
+						Mtime: utils.TimeToTS(time.Now()),
+						PermissionSet: &provider.ResourcePermissions{
+							GetPath:              true,
+							InitiateFileDownload: true,
+						},
+					},
+				},
+			}, nil)
+			r := httptest.NewRequest(http.MethodGet, "/graph/v1.0/me/drive/root/children?$select=@libre.graph.permissions.actions.allowedValues", nil)
+			r = r.WithContext(revactx.ContextSetUser(ctx, currentUser))
+			svc.GetRootDriveChildren(rr, r)
+			Expect(rr.Code).To(Equal(http.StatusOK))
+			data, err := io.ReadAll(rr.Body)
+			Expect(err).ToNot(HaveOccurred())
+
+			res := itemsList{}
+			Expect(json.Unmarshal(data, &res)).To(Succeed())
+			Expect(len(res.Value)).To(Equal(1))
+			Expect(res.Value[0].GetLibreGraphPermissionsActionsAllowedValues()).To(ConsistOf(
+				unifiedrole.DriveItemPathRead,
+				unifiedrole.DriveItemContentRead,
+			))
 		})
 	})
 
