@@ -167,7 +167,7 @@ func (b *Batch) Purge(id string, onlyDeleted bool) error {
 			case err != nil:
 				return fmt.Errorf("failed to delete by query: %w", err)
 			case len(resp.Failures) != 0:
-				return fmt.Errorf("failed to delete by query, failures: %v", resp.Failures)
+				return fmt.Errorf("failed to delete by query, failures: %s", resp.Failures)
 			}
 
 			return nil
