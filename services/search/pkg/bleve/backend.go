@@ -142,6 +142,7 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 				Location:    hitToFacet[searchMessage.GeoCoordinates](hit.Fields, "location"),
 				Photo:       hitToFacet[searchMessage.Photo](hit.Fields, "photo"),
 				MotionPhoto: hitToFacet[searchMessage.MotionPhoto](hit.Fields, "motionPhoto"),
+				LivePhoto:   hitToFacet[searchMessage.LivePhoto](hit.Fields, "livePhoto"),
 			},
 		}
 

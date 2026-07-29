@@ -291,6 +291,9 @@
         },
         "motionPhoto": {
           "$ref": "#/definitions/v0MotionPhoto"
+        },
+        "livePhoto": {
+          "$ref": "#/definitions/v0LivePhoto"
         }
       }
     },
@@ -340,6 +343,29 @@
     },
     "v0IndexSpaceResponse": {
       "type": "object"
+    },
+    "v0LivePhoto": {
+      "type": "object",
+      "properties": {
+        "contentId": {
+          "type": "string"
+        },
+        "stillImageTimeUs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "auto": {
+          "type": "boolean"
+        },
+        "vitalityScore": {
+          "type": "number",
+          "format": "double"
+        },
+        "vitalityScoringVersion": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
     },
     "v0Match": {
       "type": "object",

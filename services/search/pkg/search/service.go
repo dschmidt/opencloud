@@ -634,6 +634,7 @@ func (s *Service) doUpsertItem(ref *provider.Reference, batch BatchOperator) {
 	facetToMetadata(metadata, doc.Location, "libre.graph.location.")
 	facetToMetadata(metadata, doc.Photo, "libre.graph.photo.")
 	facetToMetadata(metadata, doc.MotionPhoto, "libre.graph.motionPhoto.")
+	facetToMetadata(metadata, doc.LivePhoto, "libre.graph.livePhoto.")
 	if len(metadata) == 0 {
 		return
 	}

@@ -83,6 +83,7 @@ func OpenSearchHitToMatch(hit opensearchgoAPI.SearchHit) (*searchMessage.Match, 
 			Location:    copyFacet[searchMessage.GeoCoordinates](resource.Location),
 			Photo:       copyFacet[searchMessage.Photo](resource.Photo),
 			MotionPhoto: copyFacet[searchMessage.MotionPhoto](resource.MotionPhoto),
+			LivePhoto:   copyFacet[searchMessage.LivePhoto](resource.LivePhoto),
 		},
 	}
 

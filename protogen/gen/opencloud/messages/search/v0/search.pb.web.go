@@ -262,6 +262,42 @@ func (m *MotionPhoto) UnmarshalJSON(b []byte) error {
 
 var _ json.Unmarshaler = (*MotionPhoto)(nil)
 
+// LivePhotoJSONMarshaler describes the default jsonpb.Marshaler used by all
+// instances of LivePhoto. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var LivePhotoJSONMarshaler = new(jsonpb.Marshaler)
+
+// MarshalJSON satisfies the encoding/json Marshaler interface. This method
+// uses the more correct jsonpb package to correctly marshal the message.
+func (m *LivePhoto) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return json.Marshal(nil)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := LivePhotoJSONMarshaler.Marshal(buf, m); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var _ json.Marshaler = (*LivePhoto)(nil)
+
+// LivePhotoJSONUnmarshaler describes the default jsonpb.Unmarshaler used by all
+// instances of LivePhoto. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var LivePhotoJSONUnmarshaler = new(jsonpb.Unmarshaler)
+
+// UnmarshalJSON satisfies the encoding/json Unmarshaler interface. This method
+// uses the more correct jsonpb package to correctly unmarshal the message.
+func (m *LivePhoto) UnmarshalJSON(b []byte) error {
+	return LivePhotoJSONUnmarshaler.Unmarshal(bytes.NewReader(b), m)
+}
+
+var _ json.Unmarshaler = (*LivePhoto)(nil)
+
 // EntityJSONMarshaler describes the default jsonpb.Marshaler used by all
 // instances of Entity. This struct is safe to replace or modify but
 // should not be done so concurrently.
