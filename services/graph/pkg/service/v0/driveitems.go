@@ -456,6 +456,7 @@ func cs3ResourceToDriveItem(logger *log.Logger, publicBaseURL *url.URL, res *sto
 		driveItem.Image = metadataToFacet[libregraph.Image](metadata, "image")
 		driveItem.Location = metadataToFacet[libregraph.GeoCoordinates](metadata, "location")
 		driveItem.Photo = metadataToFacet[libregraph.Photo](metadata, "photo")
+		driveItem.LibreGraphMotionPhoto = metadataToFacet[libregraph.MotionPhoto](metadata, "motionPhoto")
 	}
 
 	return driveItem, nil
