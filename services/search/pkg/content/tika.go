@@ -91,6 +91,7 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 		doc.Image = t.getImage(meta)
 		doc.Photo = t.getPhoto(meta)
 		doc.Audio = t.getAudio(meta)
+		doc.Video = t.getVideo(meta)
 	}
 
 	if langCode, _ := t.tika.LanguageString(ctx, doc.Content); langCode != "" && t.CleanStopWords {
