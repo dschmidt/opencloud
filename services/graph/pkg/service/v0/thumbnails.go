@@ -13,8 +13,8 @@ import (
 	"github.com/opencloud-eu/opencloud/services/thumbnails/pkg/thumbnail"
 )
 
-func shouldExpand(r *http.Request, relation string) bool {
-	return strings.Contains(r.URL.Query().Get("$expand"), relation)
+func shouldExpand(r *http.Request, relationship string) bool {
+	return strings.Contains(r.URL.Query().Get("$expand"), relationship)
 }
 
 func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.DriveItem, infos []*provider.ResourceInfo) {
