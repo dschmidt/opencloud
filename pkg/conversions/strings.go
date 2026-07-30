@@ -1,6 +1,7 @@
 package conversions
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -13,4 +14,10 @@ func StringToSliceString(src string, sep string) []string {
 	}
 
 	return parts
+}
+
+// StringToInt32 parses s as a base-10 int32, returning 0 for empty or invalid input.
+func StringToInt32(s string) int32 {
+	v, _ := strconv.ParseInt(s, 10, 32)
+	return int32(v)
 }

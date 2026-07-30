@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"strconv"
 	"strings"
 
 	provider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
 	libregraph "github.com/opencloud-eu/libre-graph-api-go"
 	"github.com/opencloud-eu/reva/v2/pkg/storagespace"
 
+	"github.com/opencloud-eu/opencloud/pkg/conversions"
 	"github.com/opencloud-eu/opencloud/services/thumbnails/pkg/thumbnail"
 )
 
@@ -86,7 +86,7 @@ func previewSourceDimensions(res *provider.ResourceInfo) (int32, int32) {
 		return w, h
 	}
 	meta := res.GetArbitraryMetadata().GetMetadata()
-	return parsePreviewInt(meta["libre.graph.image.width"]), parsePreviewInt(meta["libre.graph.image.height"])
+	return conversions.StringToInt32(meta["libre.graph.image.width"]), conversions.StringToInt32(meta["libre.graph.image.height"])
 }
 
 // fitBox scales (w, h) into a box×box square, preserving aspect and never upscaling.
@@ -104,12 +104,4 @@ func fitBox(w, h, box int32) (int32, int32) {
 		rh = 1
 	}
 	return rw, rh
-}
-
-func parsePreviewInt(s string) int32 {
-	v, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		return 0
-	}
-	return int32(v)
 }
