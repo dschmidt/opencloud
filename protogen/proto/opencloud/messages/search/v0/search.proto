@@ -41,6 +41,13 @@ message Image {
 	optional int32 height = 2;
 }
 
+// Preview carries the dimensions of an embedded preview (e.g. audio cover art).
+// Its presence signals that a preview is available for the resource.
+message Preview {
+	optional int32 width = 1;
+	optional int32 height = 2;
+}
+
 message GeoCoordinates {
   optional double altitude  = 1;
   optional double latitude = 2;
@@ -80,6 +87,7 @@ message Entity {
 	Image image = 18;
 	Photo photo = 19;
 	repeated string favorites = 20;
+	Preview preview = 21;
 }
 
 message Match {

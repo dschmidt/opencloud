@@ -288,6 +288,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "preview": {
+          "$ref": "#/definitions/v0Preview"
         }
       }
     },
@@ -390,6 +393,20 @@
           "format": "date-time"
         }
       }
+    },
+    "v0Preview": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "Preview carries the dimensions of an embedded preview (e.g. audio cover art).\nIts presence signals that a preview is available for the resource."
     },
     "v0Reference": {
       "type": "object",
