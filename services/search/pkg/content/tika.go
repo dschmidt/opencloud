@@ -79,7 +79,12 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 	if err != nil {
 		return doc, err
 	}
+	if len(metas) == 0 {
+		return doc, nil
+	}
 
+	// Title and content are aggregated across the container and all embedded
+	// resources (e.g. text embedded in a document).
 	for _, meta := range metas {
 		if title, err := getFirstValue(meta, "title"); err == nil {
 			doc.Title = strings.TrimSpace(fmt.Sprintf("%s %s", doc.Title, title))
@@ -88,12 +93,16 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 		if content, err := getFirstValue(meta, "X-TIKA:content"); err == nil {
 			doc.Content = strings.TrimSpace(fmt.Sprintf("%s %s", doc.Content, content))
 		}
-
-		doc.Location = t.getLocation(meta)
-		doc.Image = t.getImage(meta)
-		doc.Photo = t.getPhoto(meta)
-		doc.Audio = t.getAudio(meta)
 	}
+
+	// Facets describe the resource itself, so they are taken from the container
+	// (the first entry). Its embedded resources, such as audio cover art, must
+	// not leak into them; the cover's dimensions become the preview instead.
+	container := metas[0]
+	doc.Location = t.getLocation(container)
+	doc.Image = t.getImage(container)
+	doc.Photo = t.getPhoto(container)
+	doc.Audio = t.getAudio(container)
 
 	doc.Preview = getPreview(ri.GetMimeType(), metas)
 
