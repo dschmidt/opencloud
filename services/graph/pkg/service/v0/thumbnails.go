@@ -14,14 +14,15 @@ import (
 	"github.com/opencloud-eu/opencloud/services/thumbnails/pkg/thumbnail"
 )
 
-func thumbnailsExpanded(r *http.Request) bool {
-	return strings.Contains(r.URL.Query().Get("$expand"), "thumbnails")
+// shouldExpand reports whether the request asked to expand the given relationship.
+func shouldExpand(r *http.Request, relation string) bool {
+	return strings.Contains(r.URL.Query().Get("$expand"), relation)
 }
 
 // setDriveItemsThumbnails sets the thumbnails relationship on driveItems (1:1
 // with infos) when $expand=thumbnails was requested.
 func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.DriveItem, infos []*provider.ResourceInfo) {
-	if !thumbnailsExpanded(r) {
+	if !shouldExpand(r, "thumbnails") {
 		return
 	}
 	for i := range items {
