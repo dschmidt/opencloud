@@ -2,7 +2,6 @@ package svc
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"strings"
 
@@ -29,8 +28,10 @@ func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.Driv
 	}
 }
 
-// Reported dims are aspect-fit for the box, not the ClosestMatch-served
-// resolution (would need THUMBNAILS_RESOLUTIONS here; follow-up).
+// Requested box sizes for the thumbnail URLs. Small/medium/large carry no
+// dimensions: the endpoint rounds the box to a configured resolution and fits
+// within it, so the served size is not known here. Only the source dimensions
+// (below) are exact.
 const (
 	thumbnailBoxSmall  = 36
 	thumbnailBoxMedium = 48
@@ -50,28 +51,22 @@ func previewThumbnailSet(res *provider.ResourceInfo, baseURL string) *libregraph
 
 	base := fmt.Sprintf("%s/dav/spaces/%s?scalingup=0&preview=1&processor=thumbnail",
 		baseURL, storagespace.FormatResourceID(res.GetId()))
-	srcW, srcH := previewSourceDimensions(res)
 
 	set := &libregraph.ThumbnailSet{
-		Small:  previewThumbnail(base, thumbnailBoxSmall, srcW, srcH),
-		Medium: previewThumbnail(base, thumbnailBoxMedium, srcW, srcH),
-		Large:  previewThumbnail(base, thumbnailBoxLarge, srcW, srcH),
+		Small:  previewThumbnail(base, thumbnailBoxSmall),
+		Medium: previewThumbnail(base, thumbnailBoxMedium),
+		Large:  previewThumbnail(base, thumbnailBoxLarge),
 	}
-	if srcW > 0 && srcH > 0 {
-		url := fmt.Sprintf("%s&x=%d&y=%d", base, srcW, srcH)
-		set.Source = &libregraph.Thumbnail{Url: &url, Width: &srcW, Height: &srcH}
+	if w, h := previewSourceDimensions(res); w > 0 && h > 0 {
+		url := fmt.Sprintf("%s&x=%d&y=%d", base, w, h)
+		set.Source = &libregraph.Thumbnail{Url: &url, Width: &w, Height: &h}
 	}
 	return set
 }
 
-func previewThumbnail(base string, box, srcW, srcH int32) *libregraph.Thumbnail {
+func previewThumbnail(base string, box int32) *libregraph.Thumbnail {
 	url := fmt.Sprintf("%s&x=%d&y=%d", base, box, box)
-	t := &libregraph.Thumbnail{Url: &url}
-	if srcW > 0 && srcH > 0 {
-		w, h := fitBox(srcW, srcH, box)
-		t.Width, t.Height = &w, &h
-	}
-	return t
+	return &libregraph.Thumbnail{Url: &url}
 }
 
 // previewSourceDimensions: audio cover from oc.preview, images from the image facet.
@@ -83,21 +78,4 @@ func previewSourceDimensions(res *provider.ResourceInfo) (int32, int32) {
 	w := conversions.StringToInt32(meta["libre.graph.image.width"], 0)
 	h := conversions.StringToInt32(meta["libre.graph.image.height"], 0)
 	return w, h
-}
-
-// fitBox scales (w, h) into a box×box square, preserving aspect and never upscaling.
-func fitBox(w, h, box int32) (int32, int32) {
-	if w <= box && h <= box {
-		return w, h
-	}
-	scale := math.Min(float64(box)/float64(w), float64(box)/float64(h))
-	rw := int32(math.Round(float64(w) * scale))
-	rh := int32(math.Round(float64(h) * scale))
-	if rw < 1 {
-		rw = 1
-	}
-	if rh < 1 {
-		rh = 1
-	}
-	return rw, rh
 }
