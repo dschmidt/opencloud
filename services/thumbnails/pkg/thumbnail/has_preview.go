@@ -32,5 +32,7 @@ func HasPreviewForMimeType(mimeType string, hasEmbeddedPreview bool) bool {
 // PreviewDimensions returns the stored embedded-preview dimensions, or (0, 0).
 func PreviewDimensions(md *provider.ResourceInfo) (width, height int32) {
 	meta := md.GetArbitraryMetadata().GetMetadata()
-	return conversions.StringToInt32(meta[PreviewWidthKey]), conversions.StringToInt32(meta[PreviewHeightKey])
+	width, _ = conversions.StringToInt32(meta[PreviewWidthKey])
+	height, _ = conversions.StringToInt32(meta[PreviewHeightKey])
+	return
 }

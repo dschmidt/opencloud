@@ -86,7 +86,9 @@ func previewSourceDimensions(res *provider.ResourceInfo) (int32, int32) {
 		return w, h
 	}
 	meta := res.GetArbitraryMetadata().GetMetadata()
-	return conversions.StringToInt32(meta["libre.graph.image.width"]), conversions.StringToInt32(meta["libre.graph.image.height"])
+	w, _ := conversions.StringToInt32(meta["libre.graph.image.width"])
+	h, _ := conversions.StringToInt32(meta["libre.graph.image.height"])
+	return w, h
 }
 
 // fitBox scales (w, h) into a box×box square, preserving aspect and never upscaling.
