@@ -86,8 +86,8 @@ func previewSourceDimensions(res *provider.ResourceInfo) (int32, int32) {
 		return w, h
 	}
 	meta := res.GetArbitraryMetadata().GetMetadata()
-	w, _ := conversions.StringToInt32(meta["libre.graph.image.width"])
-	h, _ := conversions.StringToInt32(meta["libre.graph.image.height"])
+	w := conversions.StringToInt32(meta["libre.graph.image.width"], 0)
+	h := conversions.StringToInt32(meta["libre.graph.image.height"], 0)
 	return w, h
 }
 
