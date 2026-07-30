@@ -14,13 +14,12 @@ import (
 	"github.com/opencloud-eu/opencloud/services/thumbnails/pkg/thumbnail"
 )
 
-// shouldExpand reports whether the request asked to expand the given relationship.
 func shouldExpand(r *http.Request, relation string) bool {
 	return strings.Contains(r.URL.Query().Get("$expand"), relation)
 }
 
-// setDriveItemsThumbnails sets the thumbnails relationship on driveItems (1:1
-// with infos) when $expand=thumbnails was requested.
+// setDriveItemsThumbnails expands the thumbnails relationship on driveItems that
+// are 1:1 with infos.
 func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.DriveItem, infos []*provider.ResourceInfo) {
 	if !shouldExpand(r, "thumbnails") {
 		return
@@ -32,26 +31,23 @@ func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.Driv
 	}
 }
 
-// Thumbnail bounding boxes for the driveItem thumbnails relationship. Reported
-// dimensions are aspect-correct for the box, not the exact ClosestMatch served
-// resolution (that would need THUMBNAILS_RESOLUTIONS in graph; possible follow-up).
+// Requested box sizes. The reported dimensions are aspect-correct for the box,
+// not the ClosestMatch-served resolution (that would need THUMBNAILS_RESOLUTIONS
+// here; follow-up).
 const (
 	thumbnailBoxSmall  = 36
 	thumbnailBoxMedium = 48
 	thumbnailBoxLarge  = 96
 )
 
-// setDriveItemThumbnails sets the thumbnails relationship from a resource's info,
-// or leaves it empty when no preview is available (keeping it honest).
 func setDriveItemThumbnails(item *libregraph.DriveItem, res *provider.ResourceInfo, baseURL string) {
 	if set := previewThumbnailSet(res, baseURL); set != nil {
 		item.SetThumbnails([]libregraph.ThumbnailSet{*set})
 	}
 }
 
-// previewThumbnailSet builds the thumbnails relationship entry, or nil when no
-// preview is available. Dimensions are aspect-correct when the source size is
-// known, plus a source thumbnail with the native dimensions.
+// previewThumbnailSet returns nil when no preview is available. Dimensions are
+// aspect-correct when the source size is known, plus a source (original) entry.
 func previewThumbnailSet(res *provider.ResourceInfo, baseURL string) *libregraph.ThumbnailSet {
 	if !thumbnail.HasPreview(res) {
 		return nil
@@ -83,8 +79,8 @@ func previewThumbnail(base string, box, srcW, srcH int32) *libregraph.Thumbnail 
 	return t
 }
 
-// previewSourceDimensions returns the native preview size: the cover for audio
-// (oc.preview) or the image facet for images. Zero when unknown.
+// previewSourceDimensions: audio cover from oc.preview, images from the image
+// facet. Zero when unknown.
 func previewSourceDimensions(res *provider.ResourceInfo) (int32, int32) {
 	if w, h := thumbnail.PreviewDimensions(res); w > 0 && h > 0 {
 		return w, h
