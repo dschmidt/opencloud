@@ -14,16 +14,12 @@ import (
 	"github.com/opencloud-eu/opencloud/services/thumbnails/pkg/thumbnail"
 )
 
-// thumbnailsExpanded reports whether the request asked for the thumbnails
-// relationship to be expanded ($expand=thumbnails).
 func thumbnailsExpanded(r *http.Request) bool {
 	return strings.Contains(r.URL.Query().Get("$expand"), "thumbnails")
 }
 
-// setDriveItemsThumbnails populates the thumbnails relationship on driveItems
-// (1:1 with infos) when the request asked for it. Resource infos carry the
-// mimetype and the arbitrary metadata (image / oc.preview dimensions) that drive
-// the decision, so no extra stat is needed.
+// setDriveItemsThumbnails sets the thumbnails relationship on driveItems (1:1
+// with infos) when $expand=thumbnails was requested.
 func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.DriveItem, infos []*provider.ResourceInfo) {
 	if !thumbnailsExpanded(r) {
 		return
@@ -35,35 +31,26 @@ func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.Driv
 	}
 }
 
-// Bounding boxes for the driveItem thumbnails relationship. The thumbnails
-// endpoint scales the source to fit these preserving aspect ratio (scalingup=0).
-//
-// Note: the endpoint rounds a requested box up to the nearest configured
-// THUMBNAILS_RESOLUTIONS via ClosestMatch, so the reported dimensions are
-// aspect-correct for the requested box but not necessarily the exact served
-// resolution. Making them exact would require the resolution list to be
-// available in the graph service; this is a possible future refinement and is
-// no worse than the previous behaviour (which reported no dimensions at all).
+// Thumbnail bounding boxes for the driveItem thumbnails relationship. Reported
+// dimensions are aspect-correct for the box, not the exact ClosestMatch served
+// resolution (that would need THUMBNAILS_RESOLUTIONS in graph; possible follow-up).
 const (
 	thumbnailBoxSmall  = 36
 	thumbnailBoxMedium = 48
 	thumbnailBoxLarge  = 96
 )
 
-// setDriveItemThumbnails populates the thumbnails relationship of a driveItem
-// from its resource info when a preview is available. It is a no-op when no
-// preview exists (for example audio without embedded cover art), which keeps the
-// relationship honest instead of advertising a preview that fails to render.
+// setDriveItemThumbnails sets the thumbnails relationship from a resource's info,
+// or leaves it empty when no preview is available (keeping it honest).
 func setDriveItemThumbnails(item *libregraph.DriveItem, res *provider.ResourceInfo, baseURL string) {
 	if set := previewThumbnailSet(res, baseURL); set != nil {
 		item.SetThumbnails([]libregraph.ThumbnailSet{*set})
 	}
 }
 
-// previewThumbnailSet builds the thumbnails relationship entry for a resource,
-// or nil when no preview is available. When the source dimensions are known the
-// reported thumbnail dimensions are aspect-correct rather than square, and a
-// source (original) thumbnail carrying the native dimensions is included.
+// previewThumbnailSet builds the thumbnails relationship entry, or nil when no
+// preview is available. Dimensions are aspect-correct when the source size is
+// known, plus a source thumbnail with the native dimensions.
 func previewThumbnailSet(res *provider.ResourceInfo, baseURL string) *libregraph.ThumbnailSet {
 	if !thumbnail.HasPreview(res) {
 		return nil
@@ -95,9 +82,8 @@ func previewThumbnail(base string, box, srcW, srcH int32) *libregraph.Thumbnail 
 	return t
 }
 
-// previewSourceDimensions returns the native dimensions of a resource's preview:
-// the embedded cover dimensions for audio (from oc.preview), or the image facet
-// dimensions for images. Zero when unknown.
+// previewSourceDimensions returns the native preview size: the cover for audio
+// (oc.preview) or the image facet for images. Zero when unknown.
 func previewSourceDimensions(res *provider.ResourceInfo) (int32, int32) {
 	if w, h := thumbnail.PreviewDimensions(res); w > 0 && h > 0 {
 		return w, h
@@ -106,8 +92,7 @@ func previewSourceDimensions(res *provider.ResourceInfo) (int32, int32) {
 	return parsePreviewInt(meta["libre.graph.image.width"]), parsePreviewInt(meta["libre.graph.image.height"])
 }
 
-// fitBox scales (w, h) to fit within a box×box square preserving aspect ratio,
-// never upscaling, matching the thumbnails endpoint (scalingup=0).
+// fitBox scales (w, h) into a box×box square, preserving aspect and never upscaling.
 func fitBox(w, h, box int32) (int32, int32) {
 	if w <= box && h <= box {
 		return w, h
