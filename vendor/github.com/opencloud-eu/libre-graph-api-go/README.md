@@ -158,6 +158,7 @@ Class | Method | HTTP request | Description
 *MeUserApi* | [**UpdateOwnUser**](docs/MeUserApi.md#updateownuser) | **Patch** /v1.0/me | Update the current user
 *RoleManagementApi* | [**GetPermissionRoleDefinition**](docs/RoleManagementApi.md#getpermissionroledefinition) | **Get** /v1beta1/roleManagement/permissions/roleDefinitions/{role-id} | Get unifiedRoleDefinition
 *RoleManagementApi* | [**ListPermissionRoleDefinitions**](docs/RoleManagementApi.md#listpermissionroledefinitions) | **Get** /v1beta1/roleManagement/permissions/roleDefinitions | List roleDefinitions
+*SearchApi* | [**SearchQuery**](docs/SearchApi.md#searchquery) | **Post** /v1beta1/search/query | Search for resources
 *TagsApi* | [**AssignTags**](docs/TagsApi.md#assigntags) | **Put** /v1.0/extensions/org.libregraph/tags | Assign tags to a resource
 *TagsApi* | [**GetTags**](docs/TagsApi.md#gettags) | **Get** /v1.0/extensions/org.libregraph/tags | Get all known tags
 *TagsApi* | [**UnassignTags**](docs/TagsApi.md#unassigntags) | **Delete** /v1.0/extensions/org.libregraph/tags | Unassign tags from a resource
@@ -178,10 +179,13 @@ Class | Method | HTTP request | Description
  - [Activity](docs/Activity.md)
  - [ActivityTemplate](docs/ActivityTemplate.md)
  - [ActivityTimes](docs/ActivityTimes.md)
+ - [AggregationOption](docs/AggregationOption.md)
  - [AppRole](docs/AppRole.md)
  - [AppRoleAssignment](docs/AppRoleAssignment.md)
  - [Application](docs/Application.md)
  - [Audio](docs/Audio.md)
+ - [BucketAggregationRange](docs/BucketAggregationRange.md)
+ - [BucketDefinition](docs/BucketDefinition.md)
  - [ClassMemberReference](docs/ClassMemberReference.md)
  - [ClassReference](docs/ClassReference.md)
  - [ClassTeacherReference](docs/ClassTeacherReference.md)
@@ -243,6 +247,15 @@ Class | Method | HTTP request | Description
  - [Quota](docs/Quota.md)
  - [Recipient](docs/Recipient.md)
  - [RemoteItem](docs/RemoteItem.md)
+ - [SearchAggregation](docs/SearchAggregation.md)
+ - [SearchBucket](docs/SearchBucket.md)
+ - [SearchHit](docs/SearchHit.md)
+ - [SearchHitsContainer](docs/SearchHitsContainer.md)
+ - [SearchQuery](docs/SearchQuery.md)
+ - [SearchQuery200Response](docs/SearchQuery200Response.md)
+ - [SearchQueryRequest](docs/SearchQueryRequest.md)
+ - [SearchRequest](docs/SearchRequest.md)
+ - [SearchResponse](docs/SearchResponse.md)
  - [SharePointIdentitySet](docs/SharePointIdentitySet.md)
  - [SharingInvitation](docs/SharingInvitation.md)
  - [SharingLink](docs/SharingLink.md)
