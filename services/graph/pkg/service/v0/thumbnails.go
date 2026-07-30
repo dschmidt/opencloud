@@ -18,8 +18,6 @@ func shouldExpand(r *http.Request, relation string) bool {
 	return strings.Contains(r.URL.Query().Get("$expand"), relation)
 }
 
-// setDriveItemsThumbnails expands the thumbnails relationship on driveItems that
-// are 1:1 with infos.
 func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.DriveItem, infos []*provider.ResourceInfo) {
 	if !shouldExpand(r, "thumbnails") {
 		return
@@ -31,9 +29,8 @@ func (g Graph) setDriveItemsThumbnails(r *http.Request, items []*libregraph.Driv
 	}
 }
 
-// Requested box sizes. The reported dimensions are aspect-correct for the box,
-// not the ClosestMatch-served resolution (that would need THUMBNAILS_RESOLUTIONS
-// here; follow-up).
+// Reported dims are aspect-fit for the box, not the ClosestMatch-served
+// resolution (would need THUMBNAILS_RESOLUTIONS here; follow-up).
 const (
 	thumbnailBoxSmall  = 36
 	thumbnailBoxMedium = 48
@@ -46,8 +43,6 @@ func setDriveItemThumbnails(item *libregraph.DriveItem, res *provider.ResourceIn
 	}
 }
 
-// previewThumbnailSet returns nil when no preview is available. Dimensions are
-// aspect-correct when the source size is known, plus a source (original) entry.
 func previewThumbnailSet(res *provider.ResourceInfo, baseURL string) *libregraph.ThumbnailSet {
 	if !thumbnail.HasPreview(res) {
 		return nil
@@ -79,8 +74,7 @@ func previewThumbnail(base string, box, srcW, srcH int32) *libregraph.Thumbnail 
 	return t
 }
 
-// previewSourceDimensions: audio cover from oc.preview, images from the image
-// facet. Zero when unknown.
+// previewSourceDimensions: audio cover from oc.preview, images from the image facet.
 func previewSourceDimensions(res *provider.ResourceInfo) (int32, int32) {
 	if w, h := thumbnail.PreviewDimensions(res); w > 0 && h > 0 {
 		return w, h
