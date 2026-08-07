@@ -73,6 +73,19 @@ message LivePhoto {
 	optional int64 vitalityScoringVersion = 5;
 }
 
+message Video {
+	optional int32 audioBitsPerSample = 1;
+	optional int32 audioChannels = 2;
+	optional string audioFormat = 3;
+	optional int32 audioSamplesPerSecond = 4;
+	optional int32 bitrate = 5;
+	optional int64 duration = 6;
+	optional string fourCC = 7;
+	optional double frameRate = 8;
+	optional int32 height = 9;
+	optional int32 width = 10;
+}
+
 message Entity {
 	Reference ref = 1;
 	ResourceID id = 2;
@@ -95,6 +108,7 @@ message Entity {
 	Photo photo = 19;
 	repeated string favorites = 20;
 	MotionPhoto motionPhoto = 21;
+	Video video = 22;
 	LivePhoto livePhoto = 23;
 }
 
