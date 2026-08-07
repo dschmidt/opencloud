@@ -167,7 +167,7 @@ func (b *Batch) Purge(id string, onlyDeleted bool) error {
 			case err != nil:
 				return fmt.Errorf("failed to delete by query: %w", err)
 			case len(resp.Failures) != 0:
-				return fmt.Errorf("failed to delete by query, failures: %v", resp.Failures)
+				return fmt.Errorf("failed to delete by query, failures: %s", resp.Failures)
 			}
 
 			return nil
@@ -204,10 +204,28 @@ func (b *Batch) Push() error {
 			body.WriteString("\n")
 		}
 
-		if _, err := b.client.Bulk(context.Background(), opensearchgoAPI.BulkReq{
+		resp, err := b.client.Bulk(context.Background(), opensearchgoAPI.BulkReq{
 			Body: strings.NewReader(body.String()),
-		}); err != nil {
+		})
+		switch {
+		case err != nil:
 			return fmt.Errorf("failed to execute bulk operations: %w", err)
+		case resp.Errors:
+			var failed []opensearchgoAPI.BulkRespItem
+			for _, item := range resp.Items {
+				for _, result := range item {
+					if result.Error != nil {
+						failed = append(failed, result)
+					}
+				}
+			}
+
+			failures, err := json.Marshal(failed)
+			if err != nil {
+				return fmt.Errorf("failed to marshal bulk failures: %w", err)
+			}
+
+			return fmt.Errorf("failed to execute bulk operations, failures: %s", failures)
 		}
 
 		bulkOperations = nil
