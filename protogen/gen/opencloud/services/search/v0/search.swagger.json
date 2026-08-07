@@ -298,6 +298,12 @@
           "items": {
             "type": "string"
           }
+        },
+        "motionPhoto": {
+          "$ref": "#/definitions/v0MotionPhoto"
+        },
+        "livePhoto": {
+          "$ref": "#/definitions/v0LivePhoto"
         }
       }
     },
@@ -376,6 +382,29 @@
         }
       }
     },
+    "v0LivePhoto": {
+      "type": "object",
+      "properties": {
+        "contentId": {
+          "type": "string"
+        },
+        "stillImageTimeUs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "auto": {
+          "type": "boolean"
+        },
+        "vitalityScore": {
+          "type": "number",
+          "format": "double"
+        },
+        "vitalityScoringVersion": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
     "v0Match": {
       "type": "object",
       "properties": {
@@ -387,6 +416,23 @@
           "type": "number",
           "format": "float",
           "title": "the match score"
+        }
+      }
+    },
+    "v0MotionPhoto": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "presentationTimestampUs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "videoSize": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },

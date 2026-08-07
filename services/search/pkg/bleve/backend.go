@@ -14,6 +14,7 @@ import (
 	"github.com/opencloud-eu/reva/v2/pkg/utils"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/opencloud-eu/opencloud/pkg/kql"
 	"github.com/opencloud-eu/opencloud/pkg/log"
 	"github.com/opencloud-eu/opencloud/services/search/pkg/search"
 
@@ -45,7 +46,7 @@ func NewBackend(index bleve.Index, queryCreator searchQuery.Creator[query.Query]
 func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexRequest) (*searchService.SearchIndexResponse, error) {
 	createdQuery, err := b.queryCreator.Create(sir.Query)
 	if err != nil {
-		if searchQuery.IsValidationError(err) {
+		if kql.IsValidationError(err) {
 			return nil, errtypes.BadRequest(err.Error())
 		}
 		return nil, err
@@ -126,20 +127,22 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 					ResourceId: resourceIDtoSearchID(rootID),
 					Path:       getFieldValue[string](hit.Fields, "Path"),
 				},
-				Id:         resourceIDtoSearchID(rID),
-				Name:       getFieldValue[string](hit.Fields, "Name"),
-				ParentId:   resourceIDtoSearchID(pID),
-				Size:       uint64(getFieldValue[float64](hit.Fields, "Size")),
-				Type:       uint64(getFieldValue[float64](hit.Fields, "Type")),
-				MimeType:   getFieldValue[string](hit.Fields, "MimeType"),
-				Deleted:    getFieldValue[bool](hit.Fields, "Deleted"),
-				Tags:       getFieldSliceValue[string](hit.Fields, "Tags"),
-				Favorites:  getFieldSliceValue[string](hit.Fields, "Favorites"),
-				Highlights: getFragmentValue(hit.Fragments, "Content", 0),
-				Audio:      getAudioValue[searchMessage.Audio](hit.Fields),
-				Image:      getImageValue[searchMessage.Image](hit.Fields),
-				Location:   getLocationValue[searchMessage.GeoCoordinates](hit.Fields),
-				Photo:      getPhotoValue[searchMessage.Photo](hit.Fields),
+				Id:          resourceIDtoSearchID(rID),
+				Name:        getFieldValue[string](hit.Fields, "Name"),
+				ParentId:    resourceIDtoSearchID(pID),
+				Size:        uint64(getFieldValue[float64](hit.Fields, "Size")),
+				Type:        uint64(getFieldValue[float64](hit.Fields, "Type")),
+				MimeType:    getFieldValue[string](hit.Fields, "MimeType"),
+				Deleted:     getFieldValue[bool](hit.Fields, "Deleted"),
+				Tags:        getFieldSliceValue[string](hit.Fields, "Tags"),
+				Favorites:   getFieldSliceValue[string](hit.Fields, "Favorites"),
+				Highlights:  getFragmentValue(hit.Fragments, "Content", 0),
+				Audio:       hitToFacet[searchMessage.Audio](hit.Fields, "audio"),
+				Image:       hitToFacet[searchMessage.Image](hit.Fields, "image"),
+				Location:    hitToFacet[searchMessage.GeoCoordinates](hit.Fields, "location"),
+				Photo:       hitToFacet[searchMessage.Photo](hit.Fields, "photo"),
+				MotionPhoto: hitToFacet[searchMessage.MotionPhoto](hit.Fields, "motionPhoto"),
+				LivePhoto:   hitToFacet[searchMessage.LivePhoto](hit.Fields, "livePhoto"),
 			},
 		}
 

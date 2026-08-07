@@ -1578,8 +1578,6 @@ func (f *FileConnector) GetAvatar(ctx context.Context, userID string) (*Connecto
 		}
 		return nil, NewConnectorError(http.StatusBadGateway, "failed to fetch avatar")
 	}
-	defer photoFile.Close()
-
 	data, err := io.ReadAll(photoFile)
 	if err != nil {
 		logger.Error().Err(err).Msg("GetAvatar: failed to read avatar body")

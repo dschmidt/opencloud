@@ -8,34 +8,13 @@ import (
 	bleveQuery "github.com/blevesearch/bleve/v2/search/query"
 	"github.com/opencloud-eu/opencloud/pkg/ast"
 	"github.com/opencloud-eu/opencloud/pkg/kql"
+	"github.com/opencloud-eu/opencloud/services/search/pkg/search"
 )
 
-// lowercaseFields lists the bleve fields whose index mapping uses a
-// lowercasing analyzer. Values bound to these fields are pre-lowercased
-// so query-side matching stays consistent with the index.
-// Keep in sync with services/search/pkg/bleve/index.go NewMapping.
-var lowercaseFields = map[string]struct{}{
-	"Name":      {},
-	"Tags":      {},
-	"Favorites": {},
-	"Content":   {},
-}
-
-var _fields = map[string]string{
-	"rootid":    "RootID",
-	"path":      "Path",
-	"id":        "ID",
-	"name":      "Name",
-	"size":      "Size",
-	"mtime":     "Mtime",
-	"mediatype": "MimeType",
-	"type":      "Type",
-	"tag":       "Tags",
-	"tags":      "Tags",
-	"content":   "Content",
-	"hidden":    "Hidden",
-	"favorite":  "Favorites",
-}
+// lowercaseFields holds the fields whose query-side value is pre-lowercased so
+// it matches the index-time lowercasing analyzer. Shared with the OpenSearch
+// backend via search.LowercaseValueFields; every other field keeps its casing.
+var lowercaseFields = search.LowercaseValueFields()
 
 // The following quoted string enumerates the characters which may be escaped: "+-=&|><!(){}[]^\"~*?:\\/ "
 // based on bleve docs https://blevesearch.com/docs/Query-String-Query/
@@ -96,9 +75,11 @@ func walk(offset int, nodes []ast.Node) (bleveQuery.Query, int, error) {
 	for i := offset; i < len(nodes); i++ {
 		switch n := nodes[i].(type) {
 		case *ast.StringNode:
-			k := getField(n.Key)
+			// keys are resolved and media-type expanded by normalize; MimeType
+			// values are literal MIME types, so they skip the escaper.
+			k := n.Key
 			v := n.Value
-			if k != "ID" && k != "Size" {
+			if k != "ID" && k != "Size" && k != "MimeType" {
 				v = bleveEscaper.Replace(n.Value)
 			}
 
@@ -106,17 +87,7 @@ func walk(offset int, nodes []ast.Node) (bleveQuery.Query, int, error) {
 				v = strings.ToLower(v)
 			}
 
-			var q bleveQuery.Query
-			var group bool
-			switch k {
-			case "MimeType":
-				q, group = mimeType(k, v)
-				if prev == nil {
-					isGroup = group
-				}
-			default:
-				q = bleveQuery.NewQueryStringQuery(k + ":" + v)
-			}
+			q := bleveQuery.NewQueryStringQuery(k + ":" + v)
 
 			if prev == nil {
 				prev = q
@@ -129,7 +100,7 @@ func walk(offset int, nodes []ast.Node) (bleveQuery.Query, int, error) {
 				End:            bleveQuery.BleveQueryTime{},
 				InclusiveStart: nil,
 				InclusiveEnd:   nil,
-				FieldVal:       getField(n.Key),
+				FieldVal:       n.Key,
 			}
 
 			if n.Operator == nil {
@@ -159,16 +130,14 @@ func walk(offset int, nodes []ast.Node) (bleveQuery.Query, int, error) {
 				next = q
 			}
 		case *ast.BooleanNode:
-			q := bleveQuery.NewQueryStringQuery(getField(n.Key) + fmt.Sprintf(":%v", n.Value))
+			q := bleveQuery.NewQueryStringQuery(n.Key + fmt.Sprintf(":%v", n.Value))
 			if prev == nil {
 				prev = q
 			} else {
 				next = q
 			}
 		case *ast.GroupNode:
-			if n.Key != "" {
-				n = normalizeGroupingProperty(n)
-			}
+			// keys resolved and grouping property propagated in normalize
 			q, _, err := walk(0, n.Nodes)
 			if err != nil {
 				return nil, 0, err
@@ -275,91 +244,4 @@ func mapBinary(operator *ast.OperatorNode, ln, rn bleveQuery.Query, leftIsGroup 
 		ln,
 		rn,
 	})
-}
-
-func getField(name string) string {
-	if name == "" {
-		return "Name"
-	}
-	if _, ok := _fields[strings.ToLower(name)]; ok {
-		return _fields[strings.ToLower(name)]
-	}
-	return name
-}
-
-func normalizeGroupingProperty(group *ast.GroupNode) *ast.GroupNode {
-	for _, n := range group.Nodes {
-		if onode, ok := n.(*ast.StringNode); ok {
-			onode.Key = group.Key
-		}
-	}
-	return group
-}
-
-func mimeType(k, v string) (bleveQuery.Query, bool) {
-	switch v {
-	case "file":
-		q := bleve.NewBooleanQuery()
-		q.AddMustNot(bleveQuery.NewQueryStringQuery(k + ":httpd/unix-directory"))
-		return q, false
-	case "folder":
-		return bleveQuery.NewQueryStringQuery(k + ":httpd/unix-directory"), false
-	case "document":
-		return bleveQuery.NewDisjunctionQuery(newQueryStringQueryList(k,
-			"application/msword",
-			"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-			"application/vnd.openxmlformats-officedocument.wordprocessingml.form",
-			"application/vnd.oasis.opendocument.text",
-			"text/plain",
-			"text/markdown",
-			"application/rtf",
-			"application/vnd.apple.pages",
-		)), true
-	case "spreadsheet":
-		return bleveQuery.NewDisjunctionQuery(newQueryStringQueryList(k,
-			"application/vnd.ms-excel",
-			"application/vnd.oasis.opendocument.spreadsheet",
-			"text/csv",
-			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-			"application/vnd.oasis.opendocument.spreadsheet",
-			"application/vnd.apple.numbers",
-		)), true
-	case "presentation":
-		return bleveQuery.NewDisjunctionQuery(newQueryStringQueryList(k,
-			"application/vnd.openxmlformats-officedocument.presentationml.presentation",
-			"application/vnd.oasis.opendocument.presentation",
-			"application/vnd.ms-powerpoint",
-			"application/vnd.apple.keynote",
-		)), true
-	case "pdf":
-		return bleveQuery.NewQueryStringQuery(k + ":application/pdf"), false
-	case "image":
-		return bleveQuery.NewQueryStringQuery(k + ":image/*"), false
-	case "video":
-		return bleveQuery.NewQueryStringQuery(k + ":video/*"), false
-	case "audio":
-		return bleveQuery.NewQueryStringQuery(k + ":audio/*"), false
-	case "archive":
-		return bleveQuery.NewDisjunctionQuery(newQueryStringQueryList(k,
-			"application/zip",
-			"application/gzip",
-			"application/x-gzip",
-			"application/x-7z-compressed",
-			"application/x-rar-compressed",
-			"application/x-tar",
-			"application/x-bzip2",
-			"application/x-bzip",
-			"application/x-tgz",
-		)), true
-	default:
-		return bleveQuery.NewQueryStringQuery(k + ":" + v), false
-	}
-}
-
-func newQueryStringQueryList(k string, v ...string) []bleveQuery.Query {
-	list := make([]bleveQuery.Query, len(v))
-	for i := 0; i < len(v); i++ {
-		list[i] = bleveQuery.NewQueryStringQuery(k + ":" + v[i])
-	}
-	return list
 }
