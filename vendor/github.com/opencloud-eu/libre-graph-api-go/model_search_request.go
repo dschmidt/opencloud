@@ -30,7 +30,7 @@ type SearchRequest struct {
 	Size *int32 `json:"size,omitempty"`
 	// Specifies aggregations (also known as refiners or facets) to be returned alongside the search results. Optional. 
 	Aggregations []AggregationOption `json:"aggregations,omitempty"`
-	// Contains one or more filters to obtain search results narrowed down to a specific value of a field. Build this filter based on a prior search that aggregates by the same field. From the response of the prior search, identify the `searchBucket` that filters results to the specific value of the field, use the string in its `aggregationFilterToken` property, and build an aggregation filter string in the format `\"{field}:\\\"{aggregationFilterToken}\\\"\"`.  Multiple filters can be provided as separate array items. This results in a logical AND between the filters. 
+	// Contains one or more filters to narrow search results to specific values of a field. Each filter is a KQL expression of the form `{field}:\"{value}\"` for term buckets, or `{field}:range({from},{to})` for range buckets. Field and value should match those returned in `searchBucket.key` and the original `aggregationOption`.  Multiple filters can be provided as separate array items. This results in a logical AND between the filters. 
 	AggregationFilters []string `json:"aggregationFilters,omitempty"`
 }
 

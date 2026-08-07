@@ -1361,7 +1361,7 @@ github.com/open-policy-agent/opa/v1/version
 # github.com/opencloud-eu/icap-client v0.0.0-20250930132611-28a2afe62d89
 ## explicit; go 1.24.6
 github.com/opencloud-eu/icap-client
-# github.com/opencloud-eu/libre-graph-api-go v1.0.8-0.20260711144435-70a1ac98fd3c
+# github.com/opencloud-eu/libre-graph-api-go v1.0.8-0.20260711144435-70a1ac98fd3c => /home/domme/dev/sources/opencloud-eu/libre-graph-api-worktrees/graph-search-full-2/gen-sdk
 ## explicit; go 1.23
 github.com/opencloud-eu/libre-graph-api-go
 # github.com/opencloud-eu/reva/v2 v2.48.0
@@ -2733,3 +2733,4 @@ stash.kopano.io/kgol/rndm
 # go-micro.dev/v4 => github.com/butonic/go-micro/v4 v4.11.1-0.20241115112658-b5d4de5ed9b3
 # github.com/go-micro/plugins/v4/store/nats-js-kv => github.com/opencloud-eu/go-micro-plugins/v4/store/nats-js-kv v0.0.0-20250512152754-23325793059a
 # github.com/dhowden/tag => github.com/dschmidt/tag v0.0.0-20260730135516-8eb6fc4a6973
+# github.com/opencloud-eu/libre-graph-api-go => /home/domme/dev/sources/opencloud-eu/libre-graph-api-worktrees/graph-search-full-2/gen-sdk

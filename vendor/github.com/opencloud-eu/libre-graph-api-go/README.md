@@ -79,6 +79,7 @@ Class | Method | HTTP request | Description
 *DriveItemApi* | [**GetDriveItem**](docs/DriveItemApi.md#getdriveitem) | **Get** /v1beta1/drives/{drive-id}/items/{item-id} | Get a DriveItem.
 *DriveItemApi* | [**GetDriveItemChildren**](docs/DriveItemApi.md#getdriveitemchildren) | **Get** /v1.0/drives/{drive-id}/items/{item-id}/children | List children of a DriveItem
 *DriveItemApi* | [**GetDriveItemContent**](docs/DriveItemApi.md#getdriveitemcontent) | **Get** /v1beta1/drives/{drive-id}/items/{item-id}/content | Download the content of a DriveItem
+*DriveItemApi* | [**GetDriveItemV1**](docs/DriveItemApi.md#getdriveitemv1) | **Get** /v1.0/drives/{drive-id}/items/{item-id} | Get a DriveItem.
 *DriveItemApi* | [**UpdateDriveItem**](docs/DriveItemApi.md#updatedriveitem) | **Patch** /v1beta1/drives/{drive-id}/items/{item-id} | Update a DriveItem.
 *DrivesApi* | [**CreateDrive**](docs/DrivesApi.md#createdrive) | **Post** /v1.0/drives | Create a new drive of a specific type
 *DrivesApi* | [**DeleteDrive**](docs/DrivesApi.md#deletedrive) | **Delete** /v1.0/drives/{drive-id} | Delete a specific space
@@ -169,6 +170,7 @@ Class | Method | HTTP request | Description
 *UserAppRoleAssignmentApi* | [**UserCreateAppRoleAssignments**](docs/UserAppRoleAssignmentApi.md#usercreateapproleassignments) | **Post** /v1.0/users/{user-id}/appRoleAssignments | Grant an appRoleAssignment to a user
 *UserAppRoleAssignmentApi* | [**UserDeleteAppRoleAssignments**](docs/UserAppRoleAssignmentApi.md#userdeleteapproleassignments) | **Delete** /v1.0/users/{user-id}/appRoleAssignments/{appRoleAssignment-id} | Delete the appRoleAssignment from a user
 *UserAppRoleAssignmentApi* | [**UserListAppRoleAssignments**](docs/UserAppRoleAssignmentApi.md#userlistapproleassignments) | **Get** /v1.0/users/{user-id}/appRoleAssignments | Get appRoleAssignments from a user
+*UserDriveApi* | [**GetUserDrive**](docs/UserDriveApi.md#getuserdrive) | **Get** /v1.0/users/{user-id}/drive | Get a user&#39;s drive.
 *UserPhotoApi* | [**GetUserPhoto**](docs/UserPhotoApi.md#getuserphoto) | **Get** /v1.0/users/{user-id}/photo/$value | Get the photo of a user
 *UsersApi* | [**CreateUser**](docs/UsersApi.md#createuser) | **Post** /v1.0/users | Add new entity to users
 *UsersApi* | [**ListUsers**](docs/UsersApi.md#listusers) | **Get** /v1.0/users | Get entities from users

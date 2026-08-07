@@ -23,8 +23,6 @@ type SearchBucket struct {
 	Key *string `json:"key,omitempty"`
 	// The approximate number of search matches that share the same value specified in the `key` property. 
 	Count *int64 `json:"count,omitempty"`
-	// A token containing the encoded filter to aggregate search matches to the specific key value. To use the filter, pass the token as part of the `aggregationFilters` property in a subsequent `searchRequest`, in the format `\"{field}:\\\"{aggregationFilterToken}\\\"\"`. 
-	AggregationFilterToken *string `json:"aggregationFilterToken,omitempty"`
 	// Nested aggregation results, one per sub-aggregation requested on the parent `aggregationOption`. Libregraph extension not present in MS Graph. 
 	SubAggregations []SearchAggregation `json:"subAggregations,omitempty"`
 }
@@ -110,38 +108,6 @@ func (o *SearchBucket) SetCount(v int64) {
 	o.Count = &v
 }
 
-// GetAggregationFilterToken returns the AggregationFilterToken field value if set, zero value otherwise.
-func (o *SearchBucket) GetAggregationFilterToken() string {
-	if o == nil || IsNil(o.AggregationFilterToken) {
-		var ret string
-		return ret
-	}
-	return *o.AggregationFilterToken
-}
-
-// GetAggregationFilterTokenOk returns a tuple with the AggregationFilterToken field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *SearchBucket) GetAggregationFilterTokenOk() (*string, bool) {
-	if o == nil || IsNil(o.AggregationFilterToken) {
-		return nil, false
-	}
-	return o.AggregationFilterToken, true
-}
-
-// HasAggregationFilterToken returns a boolean if a field has been set.
-func (o *SearchBucket) HasAggregationFilterToken() bool {
-	if o != nil && !IsNil(o.AggregationFilterToken) {
-		return true
-	}
-
-	return false
-}
-
-// SetAggregationFilterToken gets a reference to the given string and assigns it to the AggregationFilterToken field.
-func (o *SearchBucket) SetAggregationFilterToken(v string) {
-	o.AggregationFilterToken = &v
-}
-
 // GetSubAggregations returns the SubAggregations field value if set, zero value otherwise.
 func (o *SearchBucket) GetSubAggregations() []SearchAggregation {
 	if o == nil || IsNil(o.SubAggregations) {
@@ -189,9 +155,6 @@ func (o SearchBucket) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Count) {
 		toSerialize["count"] = o.Count
-	}
-	if !IsNil(o.AggregationFilterToken) {
-		toSerialize["aggregationFilterToken"] = o.AggregationFilterToken
 	}
 	if !IsNil(o.SubAggregations) {
 		toSerialize["subAggregations"] = o.SubAggregations
