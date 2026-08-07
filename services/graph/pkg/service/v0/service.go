@@ -22,6 +22,7 @@ import (
 
 	"github.com/opencloud-eu/reva/v2/pkg/events"
 	"github.com/opencloud-eu/reva/v2/pkg/rgrpc/todo/pool"
+	"github.com/opencloud-eu/reva/v2/pkg/signedurl"
 	"github.com/opencloud-eu/reva/v2/pkg/store"
 	"github.com/opencloud-eu/reva/v2/pkg/utils"
 	"github.com/opencloud-eu/reva/v2/pkg/utils/ldap"
@@ -119,6 +120,7 @@ type Service interface { //nolint:interfacebloat
 	GetRootDriveChildren(w http.ResponseWriter, r *http.Request)
 	GetDriveItem(w http.ResponseWriter, r *http.Request)
 	GetDriveItemChildren(w http.ResponseWriter, r *http.Request)
+	GetDriveItemContent(w http.ResponseWriter, r *http.Request)
 
 	CreateUploadSession(w http.ResponseWriter, r *http.Request)
 
@@ -163,6 +165,14 @@ func NewService(opts ...Option) (Graph, error) { //nolint:maintidx
 		return Graph{}, fmt.Errorf("could not parse graph.spaces.webdav_base: %w", err)
 	}
 
+	var downloadSigner signedurl.Signer
+	if options.Config.Commons != nil && options.Config.Commons.URLSigningSecret != "" {
+		downloadSigner, err = signedurl.NewJWTSignedURL(signedurl.WithSecret(options.Config.Commons.URLSigningSecret))
+		if err != nil {
+			return Graph{}, fmt.Errorf("could not create download url signer: %w", err)
+		}
+	}
+
 	baseGraphService := BaseGraphService{
 		logger:          &options.Logger,
 		identityCache:   identityCache,
@@ -170,6 +180,7 @@ func NewService(opts ...Option) (Graph, error) { //nolint:maintidx
 		config:          options.Config,
 		availableRoles:  unifiedrole.GetRoles(unifiedrole.RoleFilterIDs(options.Config.UnifiedRoles.AvailableRoles...)),
 		publicBaseURL:   publicBaseURL,
+		downloadSigner:  downloadSigner,
 	}
 
 	drivesDriveItemService, err := NewDrivesDriveItemService(options.Logger, options.GatewaySelector)
@@ -292,6 +303,7 @@ func NewService(opts ...Option) (Graph, error) { //nolint:maintidx
 						r.Patch("/", drivesDriveItemApi.UpdateDriveItem)
 						r.Delete("/", drivesDriveItemApi.DeleteDriveItem)
 						r.Post("/children", drivesDriveItemApi.CreateChildDriveItem)
+						r.Get("/content", svc.GetDriveItemContent)
 						r.Post("/invite", driveItemPermissionsApi.Invite)
 						r.Post("/createLink", driveItemPermissionsApi.CreateLink)
 						r.Route("/permissions", func(r chi.Router) {

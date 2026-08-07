@@ -26,7 +26,6 @@ import (
 	"github.com/opencloud-eu/reva/v2/pkg/tags"
 	"github.com/opencloud-eu/reva/v2/pkg/utils"
 
-	"github.com/opencloud-eu/opencloud/pkg/log"
 	"github.com/opencloud-eu/opencloud/services/graph/pkg/errorcode"
 	"github.com/opencloud-eu/opencloud/services/graph/pkg/unifiedrole"
 	"github.com/opencloud-eu/opencloud/services/search/pkg/mapping"
@@ -221,13 +220,14 @@ func (g Graph) GetRootDriveChildren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	files, err := formatDriveItems(g.logger, g.publicBaseURL, lRes.GetInfos())
+	files, err := g.formatDriveItems(lRes.GetInfos())
 	if err != nil {
 		g.logger.Error().Err(err).Msg("error encoding response as json")
 		errorcode.GeneralException.Render(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	g.setDriveItemsThumbnails(r, files, lRes.GetInfos())
+	g.setDriveItemsDownloadURL(r, files, lRes.GetInfos())
 
 	if driveItemPropertySelected(r, _selectAllowedValues) {
 		for i, info := range lRes.GetInfos() {
@@ -293,11 +293,12 @@ func (g Graph) GetDriveItem(w http.ResponseWriter, r *http.Request) {
 		errorcode.GeneralException.Render(w, r, http.StatusInternalServerError, res.GetStatus().GetMessage())
 		return
 	}
-	driveItem, err := cs3ResourceToDriveItem(g.logger, g.publicBaseURL, res.GetInfo())
+	driveItem, err := g.cs3ResourceToDriveItem(res.GetInfo())
 	if err != nil {
 		errorcode.GeneralException.Render(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+	g.setDriveItemsDownloadURL(r, []*libregraph.DriveItem{driveItem}, []*storageprovider.ResourceInfo{res.GetInfo()})
 
 	if driveItemPropertySelected(r, _selectAllowedValues) {
 		driveItem.LibreGraphPermissionsActionsAllowedValues = unifiedrole.CS3ResourcePermissionsToLibregraphActions(res.GetInfo().GetPermissionSet())
@@ -365,12 +366,13 @@ func (g Graph) GetDriveItemChildren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	files, err := formatDriveItems(g.logger, g.publicBaseURL, res.GetInfos())
+	files, err := g.formatDriveItems(res.GetInfos())
 	if err != nil {
 		errorcode.GeneralException.Render(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	g.setDriveItemsThumbnails(r, files, res.GetInfos())
+	g.setDriveItemsDownloadURL(r, files, res.GetInfos())
 
 	render.Status(r, http.StatusOK)
 	render.JSON(w, r, &ListResponse{Value: files})
@@ -414,10 +416,10 @@ func (g Graph) getRemoteItem(ctx context.Context, root *storageprovider.Resource
 	return item, nil
 }
 
-func formatDriveItems(logger *log.Logger, publicBaseURL *url.URL, mds []*storageprovider.ResourceInfo) ([]*libregraph.DriveItem, error) {
+func (g BaseGraphService) formatDriveItems(mds []*storageprovider.ResourceInfo) ([]*libregraph.DriveItem, error) {
 	responses := make([]*libregraph.DriveItem, 0, len(mds))
 	for i := range mds {
-		res, err := cs3ResourceToDriveItem(logger, publicBaseURL, mds[i])
+		res, err := g.cs3ResourceToDriveItem(mds[i])
 		if err != nil {
 			return nil, err
 		}
@@ -431,18 +433,21 @@ func cs3TimestampToTime(t *types.Timestamp) time.Time {
 	return time.Unix(int64(t.GetSeconds()), int64(t.GetNanos()))
 }
 
-func cs3ResourceToDriveItem(logger *log.Logger, publicBaseURL *url.URL, res *storageprovider.ResourceInfo) (*libregraph.DriveItem, error) {
+// CS3ResourceToDriveItem exposes cs3ResourceToDriveItem for callers that only
+// hold the BaseGraphProvider interface (e.g. the drives driveItem API).
+func (g BaseGraphService) CS3ResourceToDriveItem(res *storageprovider.ResourceInfo) (*libregraph.DriveItem, error) {
+	return g.cs3ResourceToDriveItem(res)
+}
+
+func (g BaseGraphService) cs3ResourceToDriveItem(res *storageprovider.ResourceInfo) (*libregraph.DriveItem, error) {
 	size := new(int64)
 	*size = int64(res.GetSize()) // TODO lurking overflow: make size of libregraph drive item use uint64
 
 	driveItem := &libregraph.DriveItem{
-		Id:   libregraph.PtrString(storagespace.FormatResourceID(res.GetId())),
-		Size: size,
+		Id:     libregraph.PtrString(storagespace.FormatResourceID(res.GetId())),
+		Size:   size,
+		WebUrl: g.webURLForResource(res.GetId()),
 	}
-
-	webURL := *publicBaseURL
-	webURL.Path = path.Join(webURL.Path, "f", storagespace.FormatResourceID(res.GetId()))
-	driveItem.WebUrl = libregraph.PtrString(webURL.String())
 
 	if name := path.Base(res.GetPath()); name != "" {
 		driveItem.Name = &name

@@ -652,7 +652,7 @@ func (api DrivesDriveItemApi) createChild(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	driveItem, err := cs3ResourceToDriveItem(&api.logger, api.publicBaseURL, info)
+	driveItem, err := api.baseGraphService.CS3ResourceToDriveItem(info)
 	if err != nil {
 		api.logger.Debug().Err(err).Msg(ErrDriveItemConversion.Error())
 		ErrDriveItemConversion.Render(w, r)
