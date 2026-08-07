@@ -3,13 +3,25 @@ package convert
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/opencloud-eu/opencloud/pkg/ast"
 	"github.com/opencloud-eu/opencloud/pkg/kql"
 	"github.com/opencloud-eu/opencloud/services/search/pkg/opensearch/internal/osu"
+	"github.com/opencloud-eu/opencloud/services/search/pkg/query"
 )
+
+// geoQueryField resolves a KQL geo key to its indexed geopoint field, erroring
+// when the key is not a geopoint field.
+func geoQueryField(key string) (string, error) {
+	field, ok := query.ResolveGeoField(key)
+	if !ok {
+		return "", fmt.Errorf("geo predicate on non-geo field %q", key)
+	}
+	return field, nil
+}
 
 func TranspileKQLToOpenSearch(nodes []ast.Node) (osu.Builder, error) {
 	return kqlOpensearchTranspiler{}.Transpile(nodes)
@@ -141,6 +153,31 @@ func (t kqlOpensearchTranspiler) toBuilder(node ast.Node) (osu.Builder, error) {
 		}
 
 		return group, nil
+	case *ast.GeoDistanceNode:
+		field, err := geoQueryField(node.Key)
+		if err != nil {
+			return nil, err
+		}
+		return osu.NewGeoDistanceQuery(field).
+			Distance(strconv.FormatFloat(node.Radius, 'f', -1, 64)+"m").
+			Point(node.Lat, node.Lon), nil
+	case *ast.GeoBoundingBoxNode:
+		field, err := geoQueryField(node.Key)
+		if err != nil {
+			return nil, err
+		}
+		return osu.NewGeoBoundingBoxQuery(field).
+			Box(node.MinLat, node.MinLon, node.MaxLat, node.MaxLon), nil
+	case *ast.GeoPolygonNode:
+		field, err := geoQueryField(node.Key)
+		if err != nil {
+			return nil, err
+		}
+		q := osu.NewGeoPolygonQuery(field)
+		for _, p := range node.Points {
+			q.Point(p.Lat, p.Lon)
+		}
+		return q, nil
 	}
 
 	return nil, fmt.Errorf("%w: %T", ErrUnsupportedNodeType, node)
