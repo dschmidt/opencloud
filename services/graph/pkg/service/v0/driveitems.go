@@ -209,6 +209,7 @@ func (g Graph) GetRootDriveChildren(w http.ResponseWriter, r *http.Request) {
 		errorcode.GeneralException.Render(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+	g.setDriveItemsThumbnails(r, files, lRes.GetInfos())
 
 	render.Status(r, http.StatusOK)
 	render.JSON(w, r, &ListResponse{Value: files})
@@ -341,6 +342,7 @@ func (g Graph) GetDriveItemChildren(w http.ResponseWriter, r *http.Request) {
 		errorcode.GeneralException.Render(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+	g.setDriveItemsThumbnails(r, files, res.GetInfos())
 
 	render.Status(r, http.StatusOK)
 	render.JSON(w, r, &ListResponse{Value: files})

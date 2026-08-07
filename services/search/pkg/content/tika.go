@@ -77,7 +77,11 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 	if err != nil {
 		return doc, err
 	}
+	if len(metas) == 0 {
+		return doc, nil
+	}
 
+	// Title and content aggregate across the container and embedded resources.
 	for _, meta := range metas {
 		if title, err := getFirstValue(meta, "title"); err == nil {
 			doc.Title = strings.TrimSpace(fmt.Sprintf("%s %s", doc.Title, title))
@@ -86,21 +90,26 @@ func (t Tika) Extract(ctx context.Context, ri *provider.ResourceInfo) (Document,
 		if content, err := getFirstValue(meta, "X-TIKA:content"); err == nil {
 			doc.Content = strings.TrimSpace(fmt.Sprintf("%s %s", doc.Content, content))
 		}
-
-		doc.Location = t.getLocation(meta)
-		doc.Image = t.getImage(meta)
-		doc.Photo = t.getPhoto(meta)
-		doc.Audio = t.getAudio(meta)
-		doc.MotionPhoto = t.getMotionPhoto(meta)
-		doc.LivePhoto = t.getLivePhoto(meta)
-		doc.Video = t.getVideo(meta)
 	}
+
+	// Facets come from the container (first entry) only; embedded resources like
+	// audio cover art must not leak in (the cover becomes the preview instead).
+	container := metas[0]
+	doc.Location = t.getLocation(container)
+	doc.Image = t.getImage(container)
+	doc.Photo = t.getPhoto(container)
+	doc.Audio = t.getAudio(container)
+	doc.MotionPhoto = t.getMotionPhoto(container)
+	doc.LivePhoto = t.getLivePhoto(container)
+	doc.Video = t.getVideo(container)
 
 	// verify against the file itself: a shared motion photo can keep the XMP but
 	// lose the appended video, which would leave an unplayable facet.
 	if doc.MotionPhoto != nil && !t.motionPhotoHasVideo(ctx, ri, doc.MotionPhoto.GetVideoSize()) {
 		doc.MotionPhoto = nil
 	}
+
+	doc.Preview = getPreview(ri.GetMimeType(), metas)
 
 	if langCode, _ := t.tika.LanguageString(ctx, doc.Content); langCode != "" && t.CleanStopWords {
 		doc.Content = CleanString(doc.Content, langCode)

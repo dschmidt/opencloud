@@ -154,6 +154,42 @@ func (m *Image) UnmarshalJSON(b []byte) error {
 
 var _ json.Unmarshaler = (*Image)(nil)
 
+// PreviewJSONMarshaler describes the default jsonpb.Marshaler used by all
+// instances of Preview. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var PreviewJSONMarshaler = new(jsonpb.Marshaler)
+
+// MarshalJSON satisfies the encoding/json Marshaler interface. This method
+// uses the more correct jsonpb package to correctly marshal the message.
+func (m *Preview) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return json.Marshal(nil)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := PreviewJSONMarshaler.Marshal(buf, m); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var _ json.Marshaler = (*Preview)(nil)
+
+// PreviewJSONUnmarshaler describes the default jsonpb.Unmarshaler used by all
+// instances of Preview. This struct is safe to replace or modify but
+// should not be done so concurrently.
+var PreviewJSONUnmarshaler = new(jsonpb.Unmarshaler)
+
+// UnmarshalJSON satisfies the encoding/json Unmarshaler interface. This method
+// uses the more correct jsonpb package to correctly unmarshal the message.
+func (m *Preview) UnmarshalJSON(b []byte) error {
+	return PreviewJSONUnmarshaler.Unmarshal(bytes.NewReader(b), m)
+}
+
+var _ json.Unmarshaler = (*Preview)(nil)
+
 // GeoCoordinatesJSONMarshaler describes the default jsonpb.Marshaler used by all
 // instances of GeoCoordinates. This struct is safe to replace or modify but
 // should not be done so concurrently.

@@ -144,6 +144,7 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 				MotionPhoto: hitToFacet[searchMessage.MotionPhoto](hit.Fields, "motionPhoto"),
 				LivePhoto:   hitToFacet[searchMessage.LivePhoto](hit.Fields, "livePhoto"),
 				Video:       hitToFacet[searchMessage.Video](hit.Fields, "video"),
+				Preview:     hitToFacet[searchMessage.Preview](hit.Fields, "preview"),
 			},
 		}
 
