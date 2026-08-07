@@ -411,4 +411,4 @@ replace github.com/go-micro/plugins/v4/store/nats-js-kv => github.com/opencloud-
 
 replace github.com/dhowden/tag => github.com/dschmidt/tag v0.0.0-20260730135516-8eb6fc4a6973
 
-replace github.com/opencloud-eu/libre-graph-api-go => /home/domme/dev/sources/opencloud-eu/libre-graph-api-worktrees/graph-search-full-2/gen-sdk
+replace github.com/opencloud-eu/libre-graph-api-go => ../libre-graph-api-go-local
