@@ -462,6 +462,78 @@
           }
         }
       },
+      "livePhoto": {
+        "enabled": true,
+        "dynamic": true,
+        "properties": {
+          "auto": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "boolean",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "contentId": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "text",
+                "store": true,
+                "index": true,
+                "include_term_vectors": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "stillImageTimeUs": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "vitalityScore": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "vitalityScoringVersion": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          }
+        }
+      },
       "location": {
         "enabled": true,
         "dynamic": true,
@@ -507,6 +579,174 @@
           }
         }
       },
+      "location_geohash_1": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_10": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_11": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_12": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_2": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_3": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_4": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_5": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_6": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_7": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_8": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
+      "location_geohash_9": {
+        "enabled": true,
+        "dynamic": true,
+        "fields": [
+          {
+            "type": "text",
+            "analyzer": "keyword",
+            "store": true,
+            "index": true,
+            "include_term_vectors": true,
+            "docvalues": true
+          }
+        ]
+      },
       "location_geopoint": {
         "enabled": true,
         "dynamic": true,
@@ -519,6 +759,51 @@
             "docvalues": true
           }
         ]
+      },
+      "motionPhoto": {
+        "enabled": true,
+        "dynamic": true,
+        "properties": {
+          "presentationTimestampUs": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "version": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "videoSize": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          }
+        }
       },
       "photo": {
         "enabled": true,
@@ -636,6 +921,176 @@
             "fields": [
               {
                 "type": "datetime",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          }
+        }
+      },
+      "preview": {
+        "enabled": true,
+        "dynamic": true,
+        "properties": {
+          "height": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "width": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          }
+        }
+      },
+      "video": {
+        "enabled": true,
+        "dynamic": true,
+        "properties": {
+          "audioBitsPerSample": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "audioChannels": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "audioFormat": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "text",
+                "store": true,
+                "index": true,
+                "include_term_vectors": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "audioSamplesPerSecond": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "bitrate": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "duration": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "fourCC": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "text",
+                "store": true,
+                "index": true,
+                "include_term_vectors": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "frameRate": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "height": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
+                "store": true,
+                "index": true,
+                "include_in_all": true,
+                "docvalues": true
+              }
+            ]
+          },
+          "width": {
+            "enabled": true,
+            "dynamic": true,
+            "fields": [
+              {
+                "type": "number",
                 "store": true,
                 "index": true,
                 "include_in_all": true,
