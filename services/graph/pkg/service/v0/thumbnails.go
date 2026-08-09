@@ -48,16 +48,23 @@ func previewThumbnailSet(res *provider.ResourceInfo, baseURL string) *libregraph
 	if !thumbnail.HasPreview(res) {
 		return nil
 	}
+	w, h := previewSourceDimensions(res)
+	return buildThumbnailSet(previewBaseURL(baseURL, storagespace.FormatResourceID(res.GetId())), w, h)
+}
 
-	base := fmt.Sprintf("%s/dav/spaces/%s?scalingup=0&preview=1&processor=thumbnail",
-		baseURL, storagespace.FormatResourceID(res.GetId()))
+func previewBaseURL(baseURL, resourceID string) string {
+	return fmt.Sprintf("%s/dav/spaces/%s?scalingup=0&preview=1&processor=thumbnail", baseURL, resourceID)
+}
 
+// buildThumbnailSet assembles the small/medium/large thumbnails plus, when the
+// source dimensions are known, the exact-size source thumbnail.
+func buildThumbnailSet(base string, w, h int32) *libregraph.ThumbnailSet {
 	set := &libregraph.ThumbnailSet{
 		Small:  previewThumbnail(base, thumbnailBoxSmall),
 		Medium: previewThumbnail(base, thumbnailBoxMedium),
 		Large:  previewThumbnail(base, thumbnailBoxLarge),
 	}
-	if w, h := previewSourceDimensions(res); w > 0 && h > 0 {
+	if w > 0 && h > 0 {
 		url := fmt.Sprintf("%s&x=%d&y=%d", base, w, h)
 		set.Source = &libregraph.Thumbnail{Url: &url, Width: &w, Height: &h}
 	}
