@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path"
 
 	gateway "github.com/cs3org/go-cs3apis/cs3/gateway/v1beta1"
 	collaborationv1beta1 "github.com/cs3org/go-cs3apis/cs3/sharing/collaboration/v1beta1"
@@ -583,6 +584,29 @@ var _ = Describe("DrivesDriveItemService", func() {
 		})
 	})
 })
+
+// stubCS3ResourceToDriveItem registers a CS3ResourceToDriveItem expectation
+// with a minimal faithful conversion (name, folder/file facet, mimetype).
+func stubCS3ResourceToDriveItem(m *mocks.BaseGraphProvider) {
+	m.EXPECT().
+		CS3ResourceToDriveItem(mock.Anything).
+		RunAndReturn(func(info *storageprovider.ResourceInfo) (*libregraph.DriveItem, error) {
+			item := libregraph.NewDriveItem()
+			item.SetName(path.Base(info.GetPath()))
+			switch info.GetType() {
+			case storageprovider.ResourceType_RESOURCE_TYPE_CONTAINER:
+				item.SetFolder(*libregraph.NewFolder())
+			case storageprovider.ResourceType_RESOURCE_TYPE_FILE:
+				file := libregraph.OpenGraphFile{}
+				if mt := info.GetMimeType(); mt != "" {
+					file.SetMimeType(mt)
+				}
+				item.SetFile(file)
+			}
+			return item, nil
+		}).
+		Once()
+}
 
 var _ = Describe("DrivesDriveItemApi", func() {
 	var (
@@ -1381,6 +1405,7 @@ var _ = Describe("DrivesDriveItemApi", func() {
 					Type: storageprovider.ResourceType_RESOURCE_TYPE_CONTAINER,
 				}, nil).
 				Once()
+			stubCS3ResourceToDriveItem(baseGraphProvider)
 
 			r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer(driveItemJson)).
 				WithContext(
@@ -1413,6 +1438,7 @@ var _ = Describe("DrivesDriveItemApi", func() {
 					Type: storageprovider.ResourceType_RESOURCE_TYPE_FILE,
 				}, nil).
 				Once()
+			stubCS3ResourceToDriveItem(baseGraphProvider)
 
 			r := httptest.NewRequest(http.MethodPost, "/?%40libre.graph.conflictBehavior=replace", bytes.NewBuffer(driveItemJson)).
 				WithContext(
@@ -1507,6 +1533,7 @@ var _ = Describe("DrivesDriveItemApi", func() {
 					MimeType: "text/plain",
 				}, nil).
 				Once()
+			stubCS3ResourceToDriveItem(baseGraphProvider)
 
 			r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer(driveItemJson)).
 				WithContext(
