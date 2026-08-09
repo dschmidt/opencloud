@@ -14,7 +14,10 @@ import (
 	"go-micro.dev/v4/client"
 
 	"github.com/opencloud-eu/opencloud/pkg/log"
+	"github.com/opencloud-eu/opencloud/pkg/shared"
+	searchmsg "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/messages/search/v0"
 	searchsvc "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/services/search/v0"
+	"github.com/opencloud-eu/opencloud/services/graph/pkg/config"
 )
 
 type stubSearchService struct {
@@ -25,20 +28,25 @@ func (s stubSearchService) Search(_ context.Context, req *searchsvc.SearchReques
 	return s.search(req)
 }
 
-func (s stubSearchService) IndexSpace(_ context.Context, _ *searchsvc.IndexSpaceRequest, _ ...client.CallOption) (*searchsvc.IndexSpaceResponse, error) {
+func (s stubSearchService) IndexSpace(_ context.Context, _ *searchsvc.IndexSpaceRequest, _ ...client.CallOption) (searchsvc.SearchProvider_IndexSpaceService, error) {
 	return nil, nil
 }
 
 func graphWithSearch(stub stubSearchService) Graph {
 	logger := log.NewLogger()
+	cfg := &config.Config{Commons: &shared.Commons{OpenCloudURL: "https://cloud.example"}}
 	return Graph{
-		BaseGraphService: BaseGraphService{logger: &logger},
+		BaseGraphService: BaseGraphService{logger: &logger, config: cfg},
 		searchService:    stub,
 	}
 }
 
 func postSearchQuery(g Graph, body string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/search/query", bytes.NewBufferString(body))
+	return postSearchQueryTarget(g, "/search/query", body)
+}
+
+func postSearchQueryTarget(g Graph, target, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, target, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	g.SearchQuery(rr, req)
@@ -163,5 +171,84 @@ var _ = ginkgo.Describe("SearchQuery", func() {
 		}`)
 		Expect(rr.Code).To(Equal(http.StatusOK), rr.Body.String())
 		Expect(called).To(BeTrue())
+	})
+
+	ginkgo.It("expands thumbnails on hits when $expand=thumbnails is requested", func() {
+		coverW, coverH := int32(500), int32(500)
+		g := graphWithSearch(stubSearchService{
+			search: func(*searchsvc.SearchRequest) (*searchsvc.SearchResponse, error) {
+				return &searchsvc.SearchResponse{
+					TotalMatches: 3,
+					Matches: []*searchmsg.Match{
+						{Entity: &searchmsg.Entity{
+							Id:       &searchmsg.ResourceID{StorageId: "s", SpaceId: "sp", OpaqueId: "audio-with-cover"},
+							Name:     "song.flac",
+							MimeType: "audio/flac",
+							Preview:  &searchmsg.Preview{Width: &coverW, Height: &coverH},
+						}},
+						{Entity: &searchmsg.Entity{
+							Id:       &searchmsg.ResourceID{StorageId: "s", SpaceId: "sp", OpaqueId: "audio-plain"},
+							Name:     "plain.flac",
+							MimeType: "audio/flac",
+						}},
+						{Entity: &searchmsg.Entity{
+							Id:       &searchmsg.ResourceID{StorageId: "s", SpaceId: "sp", OpaqueId: "image"},
+							Name:     "pic.png",
+							MimeType: "image/png",
+							Image:    &searchmsg.Image{Width: int32Ptr(1024), Height: int32Ptr(768)},
+						}},
+					},
+				}, nil
+			},
+		})
+
+		body := `{"requests": [{"entityTypes": ["driveItem"], "query": {"queryString": "*"}}]}`
+
+		rr := postSearchQueryTarget(g, "/search/query?$expand=thumbnails", body)
+		Expect(rr.Code).To(Equal(http.StatusOK), rr.Body.String())
+
+		var resp struct {
+			Value []struct {
+				HitsContainers []struct {
+					Hits []struct {
+						Resource struct {
+							Name       string `json:"name"`
+							Thumbnails []struct {
+								Small  *struct{ Url string } `json:"small"`
+								Source *struct {
+									Url           string
+									Width, Height int32
+								} `json:"source"`
+							} `json:"thumbnails"`
+						} `json:"resource"`
+					} `json:"hits"`
+				} `json:"hitsContainers"`
+			} `json:"value"`
+		}
+		Expect(json.Unmarshal(rr.Body.Bytes(), &resp)).To(Succeed())
+		hits := resp.Value[0].HitsContainers[0].Hits
+		Expect(hits).To(HaveLen(3))
+
+		// audio with indexed cover art: thumbnails incl. exact-size source
+		withCover := hits[0].Resource
+		Expect(withCover.Thumbnails).To(HaveLen(1))
+		Expect(withCover.Thumbnails[0].Small.Url).To(ContainSubstring("https://cloud.example/dav/spaces/"))
+		Expect(withCover.Thumbnails[0].Source).NotTo(BeNil())
+		Expect(withCover.Thumbnails[0].Source.Width).To(Equal(int32(500)))
+
+		// audio without indexed cover art: no preview, no thumbnails
+		Expect(hits[1].Resource.Thumbnails).To(BeEmpty())
+
+		// image: unconditional preview, source dimensions from the image facet
+		image := hits[2].Resource
+		Expect(image.Thumbnails).To(HaveLen(1))
+		Expect(image.Thumbnails[0].Source).NotTo(BeNil())
+		Expect(image.Thumbnails[0].Source.Width).To(Equal(int32(1024)))
+		Expect(image.Thumbnails[0].Source.Height).To(Equal(int32(768)))
+
+		// without $expand the hits stay bare
+		rr = postSearchQueryTarget(g, "/search/query", body)
+		Expect(rr.Code).To(Equal(http.StatusOK), rr.Body.String())
+		Expect(rr.Body.String()).NotTo(ContainSubstring("thumbnails"))
 	})
 })

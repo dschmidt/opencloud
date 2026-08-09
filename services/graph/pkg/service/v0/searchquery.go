@@ -20,6 +20,7 @@ import (
 	searchsvc "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/services/search/v0"
 	"github.com/opencloud-eu/opencloud/services/graph/pkg/errorcode"
 	"github.com/opencloud-eu/opencloud/services/search/pkg/search"
+	"github.com/opencloud-eu/opencloud/services/thumbnails/pkg/thumbnail"
 )
 
 // SearchQuery runs the search requests and returns results grouped by request
@@ -48,9 +49,11 @@ func (g Graph) SearchQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := revaCtx.ContextSetToken(r.Context(), th)
 	ctx = metadata.Set(ctx, revaCtx.TokenHeader, th)
 
+	expandThumbnails := shouldExpand(r, "thumbnails")
+
 	responses := make([]libregraph.SearchResponse, 0, len(req.Requests))
 	for _, sr := range req.Requests {
-		sresp, err := g.runSingleSearch(ctx, sr)
+		sresp, err := g.runSingleSearch(ctx, sr, expandThumbnails)
 		if err != nil {
 			g.renderSearchError(w, r, err)
 			return
@@ -62,7 +65,7 @@ func (g Graph) SearchQuery(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, libregraph.SearchQuery200Response{Value: responses})
 }
 
-func (g Graph) runSingleSearch(ctx context.Context, sr libregraph.SearchRequest) (libregraph.SearchResponse, error) {
+func (g Graph) runSingleSearch(ctx context.Context, sr libregraph.SearchRequest, expandThumbnails bool) (libregraph.SearchResponse, error) {
 	from, size := clampPagination(sr.From, sr.Size)
 
 	// The gRPC layer has no from field: request from+size matches and slice
@@ -86,7 +89,7 @@ func (g Graph) runSingleSearch(ctx context.Context, sr libregraph.SearchRequest)
 		start := min(int(from), len(rsp.Matches))
 		end := min(start+int(size), len(rsp.Matches))
 		for i := start; i < end; i++ {
-			hits = append(hits, matchToSearchHit(rsp.Matches[i], int32(i+1)))
+			hits = append(hits, g.matchToSearchHit(rsp.Matches[i], int32(i+1), expandThumbnails))
 		}
 	}
 
@@ -305,7 +308,7 @@ func (g Graph) renderSearchError(w http.ResponseWriter, r *http.Request, err err
 	}
 }
 
-func matchToSearchHit(m *searchmsg.Match, rank int32) libregraph.SearchHit {
+func (g Graph) matchToSearchHit(m *searchmsg.Match, rank int32, expandThumbnails bool) libregraph.SearchHit {
 	hit := libregraph.SearchHit{
 		HitId: libregraph.PtrString(searchEntityHitID(m.GetEntity())),
 		Rank:  &rank,
@@ -314,8 +317,32 @@ func matchToSearchHit(m *searchmsg.Match, rank int32) libregraph.SearchHit {
 		hit.Summary = libregraph.PtrString(h)
 	}
 	di := searchEntityToDriveItem(m.GetEntity())
+	if expandThumbnails {
+		if set := searchEntityThumbnailSet(m.GetEntity(), g.config.Commons.OpenCloudURL); set != nil {
+			di.SetThumbnails([]libregraph.ThumbnailSet{*set})
+		}
+	}
 	hit.Resource = di
 	return hit
+}
+
+// searchEntityThumbnailSet is previewThumbnailSet for search hits: preview
+// presence and source dimensions come from the index instead of a stat.
+func searchEntityThumbnailSet(e *searchmsg.Entity, baseURL string) *libregraph.ThumbnailSet {
+	if !thumbnail.HasPreviewForMimeType(e.GetMimeType(), e.GetPreview() != nil) {
+		return nil
+	}
+	w, h := searchEntitySourceDimensions(e)
+	return buildThumbnailSet(previewBaseURL(baseURL, searchEntityHitID(e)), w, h)
+}
+
+// searchEntitySourceDimensions mirrors previewSourceDimensions on index data:
+// audio cover art from the indexed preview, images from the image facet.
+func searchEntitySourceDimensions(e *searchmsg.Entity) (int32, int32) {
+	if p := e.GetPreview(); p.GetWidth() > 0 && p.GetHeight() > 0 {
+		return p.GetWidth(), p.GetHeight()
+	}
+	return e.GetImage().GetWidth(), e.GetImage().GetHeight()
 }
 
 func searchEntityHitID(e *searchmsg.Entity) string {
