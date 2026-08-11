@@ -211,12 +211,64 @@ func newBleveFacetRequest(agg *searchService.AggregationOption) (*bleve.FacetReq
 		return bleve.NewFacetRequest(field, size), nil
 	}
 	fr := bleve.NewFacetRequest(agg.GetField(), size)
-	for _, r := range aggregationRanges(agg) {
+	ranges := aggregationRanges(agg)
+	if rangesAreDates(ranges) {
+		// bleve facets cannot mix numeric and date ranges, so one date-looking
+		// bound switches the whole aggregation to date mode.
+		for _, r := range ranges {
+			start, err := parseRangeTime(r.GetFrom())
+			if err != nil {
+				return nil, fmt.Errorf("invalid date range bound %q on field %q", r.GetFrom(), agg.GetField())
+			}
+			end, err := parseRangeTime(r.GetTo())
+			if err != nil {
+				return nil, fmt.Errorf("invalid date range bound %q on field %q", r.GetTo(), agg.GetField())
+			}
+			fr.AddDateTimeRange(rangeBucketKey(r), start, end)
+		}
+		return fr, nil
+	}
+	for _, r := range ranges {
 		minP := parseFloatPtr(r.GetFrom())
 		maxP := parseFloatPtr(r.GetTo())
 		fr.AddNumericRange(rangeBucketKey(r), minP, maxP)
 	}
 	return fr, nil
+}
+
+// rangeTimeLayouts are the accepted formats for date range bounds, tried in order.
+var rangeTimeLayouts = []string{time.RFC3339, "2006-01-02"}
+
+// rangesAreDates reports whether the ranges should be treated as datetime
+// ranges: at least one bound parses as a date rather than a number.
+func rangesAreDates(ranges []*searchService.BucketRange) bool {
+	for _, r := range ranges {
+		for _, s := range []string{r.GetFrom(), r.GetTo()} {
+			if s == "" {
+				continue
+			}
+			if _, err := strconv.ParseFloat(s, 64); err == nil {
+				continue
+			}
+			if _, err := parseRangeTime(s); err == nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// parseRangeTime parses a range bound; the zero time marks an open bound.
+func parseRangeTime(s string) (time.Time, error) {
+	if s == "" {
+		return time.Time{}, nil
+	}
+	for _, layout := range rangeTimeLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unsupported time format %q", s)
 }
 
 func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.AggregationOption) []*searchService.AggregationResult {
@@ -235,6 +287,12 @@ func extractBleveAggregations(res *bleve.SearchResult, aggs []*searchService.Agg
 				buckets = append(buckets, &searchService.Bucket{
 					Key:   nr.Name,
 					Count: int64(nr.Count),
+				})
+			}
+			for _, dr := range fr.DateRanges {
+				buckets = append(buckets, &searchService.Bucket{
+					Key:   dr.Name,
+					Count: int64(dr.Count),
 				})
 			}
 		} else {
