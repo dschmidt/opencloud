@@ -1039,5 +1039,45 @@ var _ = Describe("Bleve", func() {
 				Expect(err).To(HaveOccurred())
 			})
 		})
+
+		Describe("path scoped searches", func() {
+			upsertAt := func(id, path, name string) {
+				r := search.Resource{
+					ID:       id,
+					ParentID: rootResource.ID,
+					RootID:   rootResource.ID,
+					Path:     path,
+					Type:     uint64(sprovider.ResourceType_RESOURCE_TYPE_FILE),
+					Document: content.Document{Name: name, MimeType: "image/jpeg"},
+				}
+				Expect(eng.Upsert(r.ID, r)).To(Succeed())
+			}
+
+			BeforeEach(func() {
+				upsertAt("1$2!4001", "./holiday/a.jpg", "a.jpg")
+				upsertAt("1$2!4002", "./holiday/b.jpg", "b.jpg")
+				upsertAt("1$2!4003", "./holiday/sub/c.jpg", "c.jpg")
+				upsertAt("1$2!4004", "./other/d.jpg", "d.jpg")
+				upsertAt("1$2!4005", "./e.jpg", "e.jpg")
+			})
+
+			It("covers the full result set regardless of the page size", func() {
+				rID, err := storagespace.ParseID(rootResource.ID)
+				Expect(err).ToNot(HaveOccurred())
+				res, err := eng.Search(context.Background(), &searchsvc.SearchIndexRequest{
+					Query:    "mediatype:image",
+					PageSize: 1,
+					Ref: &searchmsg.Reference{
+						ResourceId: &searchmsg.ResourceID{
+							StorageId: rID.StorageId, SpaceId: rID.SpaceId, OpaqueId: rID.OpaqueId,
+						},
+						Path: "./holiday",
+					},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.TotalMatches).To(Equal(int32(3)))
+				Expect(len(res.Matches)).To(Equal(3))
+			})
+		})
 	})
 })

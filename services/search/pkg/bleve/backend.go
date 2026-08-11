@@ -112,6 +112,13 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 		bleveReq.Size = subAggScanSize
 	}
 
+	// Path-scoped searches (scope below the space root) drop out-of-scope hits
+	// after the query ran; the page must cover the full result set or hits and
+	// totals only reflect the first page.
+	if p := sir.GetRef().GetPath(); p != "" && utils.MakeRelativePath(p) != "." && bleveReq.Size < subAggScanSize {
+		bleveReq.Size = subAggScanSize
+	}
+
 	bleveReq.Fields = []string{"*"}
 	res, err := b.index.Search(bleveReq)
 	if err != nil {
