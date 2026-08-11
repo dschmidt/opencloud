@@ -246,6 +246,42 @@ func ParseScope(query string) (string, string) {
 	return query, ""
 }
 
+var (
+	driveIDRegex   = regexp.MustCompile(`\bdriveId:\s*(?:"([^"]+)"|([^\s]+))`)
+	scopePathRegex = regexp.MustCompile(`\bpath:\s*(?:"([^"]+)"|([^\s]+))`)
+	duplicateAND   = regexp.MustCompile(`(?i)\bAND(\s+AND)+\b`)
+	edgeAND        = regexp.MustCompile(`(?i)(^\s*AND\b)|(\bAND\s*$)`)
+)
+
+// ParseLocationFilters extracts the human-readable location scope from a query:
+// `driveId:"<storage$space>"` optionally combined with `path:"<folder/sub>"`.
+// The path token is only consumed alongside a driveId, a bare `path:` keeps its
+// regular meaning as an indexed field.
+func ParseLocationFilters(query string) (cleaned, driveID, path string) {
+	driveMatch := driveIDRegex.FindStringSubmatch(query)
+	if driveMatch == nil {
+		return query, "", ""
+	}
+	driveID = firstNonEmpty(driveMatch[1], driveMatch[2])
+	cleaned = strings.Replace(query, driveMatch[0], "", 1)
+	if pathMatch := scopePathRegex.FindStringSubmatch(cleaned); pathMatch != nil {
+		path = firstNonEmpty(pathMatch[1], pathMatch[2])
+		cleaned = strings.Replace(cleaned, pathMatch[0], "", 1)
+	}
+	cleaned = duplicateAND.ReplaceAllString(cleaned, "AND")
+	cleaned = strings.TrimSpace(edgeAND.ReplaceAllString(cleaned, ""))
+	return cleaned, driveID, path
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // ParseFlags extracts supported flags from the query string and returns the cleaned query and a map of flags
 func ParseFlags(query string) (string, []string) {
 	supportedFlags := []string{"is:favorite"}

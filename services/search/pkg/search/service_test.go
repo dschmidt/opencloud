@@ -690,3 +690,42 @@ var _ = DescribeTable("Parse Scope",
 		``,
 	),
 )
+
+var _ = DescribeTable("ParseLocationFilters",
+	func(pattern, wantSearch, wantDriveID, wantPath string) {
+		gotSearch, gotDriveID, gotPath := search.ParseLocationFilters(pattern)
+		Expect(gotSearch).To(Equal(wantSearch))
+		Expect(gotDriveID).To(Equal(wantDriveID))
+		Expect(gotPath).To(Equal(wantPath))
+	},
+	Entry("drive id and quoted path",
+		`mediatype:image AND driveId:"storage$space" AND path:"2019-12 - Weihnachten"`,
+		`mediatype:image`,
+		`storage$space`,
+		`2019-12 - Weihnachten`,
+	),
+	Entry("drive id only",
+		`mediatype:image AND driveId:storage$space`,
+		`mediatype:image`,
+		`storage$space`,
+		``,
+	),
+	Entry("tokens in the middle of the query",
+		`driveId:"storage$space" AND path:"a/b" AND mediatype:image`,
+		`mediatype:image`,
+		`storage$space`,
+		`a/b`,
+	),
+	Entry("bare path keeps its regular meaning",
+		`mediatype:image AND path:"a/b"`,
+		`mediatype:image AND path:"a/b"`,
+		``,
+		``,
+	),
+	Entry("no location filters",
+		`mediatype:image`,
+		`mediatype:image`,
+		``,
+		``,
+	),
+)

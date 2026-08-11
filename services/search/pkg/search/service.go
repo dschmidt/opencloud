@@ -129,11 +129,32 @@ func (s *Service) Search(ctx context.Context, req *searchsvc.SearchRequest) (*se
 
 	// Extract scope from query if set
 	query, scope := ParseScope(query)
+
+	// Extract the readable location filters (driveId:"..." [AND path:"..."])
+	query, scopeDriveID, scopePath := ParseLocationFilters(query)
+
 	if query == "" {
 		return nil, errtypes.BadRequest("empty query provided")
 	}
 	req.Query = query
-	if len(scope) > 0 {
+	if scopeDriveID != "" {
+		rootID, err := storagespace.ParseID(scopeDriveID)
+		if err != nil {
+			return nil, errtypes.BadRequest("invalid driveId: " + scopeDriveID)
+		}
+		if rootID.GetOpaqueId() == "" {
+			// a bare drive id addresses the space root
+			rootID.OpaqueId = rootID.GetSpaceId()
+		}
+		req.Ref = &searchmsg.Reference{
+			ResourceId: &searchmsg.ResourceID{
+				StorageId: rootID.GetStorageId(),
+				SpaceId:   rootID.GetSpaceId(),
+				OpaqueId:  rootID.GetOpaqueId(),
+			},
+			Path: utils.MakeRelativePath(scopePath),
+		}
+	} else if len(scope) > 0 {
 		scopedID, err := storagespace.ParseID(scope)
 		if err != nil {
 			s.logger.Error().Err(err).Msg("failed to parse scope")
