@@ -251,6 +251,8 @@ var (
 	scopePathRegex = regexp.MustCompile(`\bpath:\s*(?:"([^"]+)"|([^\s]+))`)
 	duplicateAND   = regexp.MustCompile(`(?i)\bAND(\s+AND)+\b`)
 	edgeAND        = regexp.MustCompile(`(?i)(^\s*AND\b)|(\bAND\s*$)`)
+	parenEdgeAND   = regexp.MustCompile(`(?i)(\(\s*AND\b\s*)|(\s*\bAND\s*\))`)
+	emptyParens    = regexp.MustCompile(`\(\s*\)`)
 )
 
 // ParseLocationFilters extracts the human-readable location scope from a query:
@@ -268,9 +270,23 @@ func ParseLocationFilters(query string) (cleaned, driveID, path string) {
 		path = firstNonEmpty(pathMatch[1], pathMatch[2])
 		cleaned = strings.Replace(cleaned, pathMatch[0], "", 1)
 	}
-	cleaned = duplicateAND.ReplaceAllString(cleaned, "AND")
-	cleaned = strings.TrimSpace(edgeAND.ReplaceAllString(cleaned, ""))
-	return cleaned, driveID, path
+	// the removed tokens may leave dangling ANDs behind, also inside groups;
+	// iterate to a fixed point since fixes can cascade (e.g. "( AND )")
+	for {
+		next := duplicateAND.ReplaceAllString(cleaned, "AND")
+		next = parenEdgeAND.ReplaceAllStringFunc(next, func(m string) string {
+			if strings.HasPrefix(m, "(") {
+				return "("
+			}
+			return ")"
+		})
+		next = emptyParens.ReplaceAllString(next, "")
+		next = strings.TrimSpace(edgeAND.ReplaceAllString(next, ""))
+		if next == cleaned {
+			return next, driveID, path
+		}
+		cleaned = next
+	}
 }
 
 func firstNonEmpty(values ...string) string {
