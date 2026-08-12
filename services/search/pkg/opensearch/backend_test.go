@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/opencloud-eu/opencloud/pkg/log"
+	searchMessage "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/messages/search/v0"
 	searchService "github.com/opencloud-eu/opencloud/protogen/gen/opencloud/services/search/v0"
 	"github.com/opencloud-eu/opencloud/services/search/pkg/opensearch"
 	"github.com/opencloud-eu/opencloud/services/search/pkg/opensearch/internal/test"
@@ -71,6 +72,37 @@ func TestEngine_Search(t *testing.T) {
 		require.Len(t, resp.Matches, 1)
 		require.Equal(t, int32(1), resp.TotalMatches)
 		require.Equal(t, document.ID, fmt.Sprintf("%s$%s!%s", resp.Matches[0].Entity.Id.StorageId, resp.Matches[0].Entity.Id.SpaceId, resp.Matches[0].Entity.Id.OpaqueId))
+	})
+
+	t.Run("path scope restricts hits, totals and aggregations", func(t *testing.T) {
+		other := opensearchtest.Testdata.Resources.File
+		other.ID = "1$1!5"
+		other.Path = "./other folder/else.jpg"
+		outOfScopeCamera := "OutOfScopeCam"
+		otherPhoto := *other.Photo
+		otherPhoto.CameraModel = &outOfScopeCamera
+		other.Photo = &otherPhoto
+
+		tc.Require.DocumentCreate(indexName, other.ID, strings.NewReader(opensearchtest.JSONMustMarshal(t, other)))
+
+		resp, err := backend.Search(t.Context(), &searchService.SearchIndexRequest{
+			Query: fmt.Sprintf(`"%s"`, document.Name),
+			Ref: &searchMessage.Reference{
+				ResourceId: &searchMessage.ResourceID{StorageId: "1", SpaceId: "1", OpaqueId: "1"},
+				Path:       "./parent d!r",
+			},
+			Aggregations: []*searchService.AggregationOption{
+				{Field: "photo.cameraModel", Size: 10},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Matches, 1)
+		require.Equal(t, int32(1), resp.TotalMatches)
+		require.Equal(t, "./parent d!r/child.jpg", resp.Matches[0].Entity.Ref.Path)
+		require.Len(t, resp.Aggregations, 1)
+		for _, b := range resp.Aggregations[0].Buckets {
+			require.NotEqual(t, outOfScopeCamera, b.Key)
+		}
 	})
 }
 

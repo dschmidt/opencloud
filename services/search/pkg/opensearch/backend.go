@@ -92,6 +92,14 @@ func (b *Backend) Search(ctx context.Context, sir *searchService.SearchIndexRequ
 				),
 			),
 		)
+		// Scope below the space root: restrict at query level so aggregations,
+		// totals and paging respect the path too. Path uses the path_hierarchy
+		// analyzer, so the folder path is an indexed token of every descendant.
+		if requestedPath := utils.MakeRelativePath(sir.Ref.Path); requestedPath != "." {
+			boolQuery.Filter(
+				osu.NewTermQuery[string]("Path").Value(requestedPath),
+			)
+		}
 	}
 
 	searchParams := opensearchgoAPI.SearchParams{
