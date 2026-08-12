@@ -32,6 +32,8 @@ type SearchRequest struct {
 	Aggregations []AggregationOption `json:"aggregations,omitempty"`
 	// Contains one or more filters to narrow search results to specific values of a field. Each filter is a KQL expression of the form `{field}:\"{value}\"` for term buckets, or `{field}:range({from},{to})` for range buckets. Field and value should match those returned in `searchBucket.key` and the original `aggregationOption`.  Multiple filters can be provided as separate array items. This results in a logical AND between the filters. 
 	AggregationFilters []string `json:"aggregationFilters,omitempty"`
+	// Contains the ordered collection of fields to sort the results on. If absent, the results are sorted by relevance. See `SortProperty.Name` for the set of sortable fields. Optional.
+	SortProperties []SortProperty `json:"sortProperties,omitempty"`
 }
 
 type _SearchRequest SearchRequest
