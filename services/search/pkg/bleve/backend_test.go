@@ -1061,7 +1061,7 @@ var _ = Describe("Bleve", func() {
 				upsertAt("1$2!4005", "./e.jpg", "e.jpg")
 			})
 
-			It("covers the full result set regardless of the page size", func() {
+			It("restricts totals and paging to the scope", func() {
 				rID, err := storagespace.ParseID(rootResource.ID)
 				Expect(err).ToNot(HaveOccurred())
 				res, err := eng.Search(context.Background(), &searchsvc.SearchIndexRequest{
@@ -1076,7 +1076,32 @@ var _ = Describe("Bleve", func() {
 				})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(res.TotalMatches).To(Equal(int32(3)))
-				Expect(len(res.Matches)).To(Equal(3))
+				Expect(len(res.Matches)).To(Equal(1))
+			})
+
+			It("restricts aggregations to the scope", func() {
+				rID, err := storagespace.ParseID(rootResource.ID)
+				Expect(err).ToNot(HaveOccurred())
+				res, err := eng.Search(context.Background(), &searchsvc.SearchIndexRequest{
+					Query:    "mediatype:image",
+					PageSize: 0,
+					Ref: &searchmsg.Reference{
+						ResourceId: &searchmsg.ResourceID{
+							StorageId: rID.StorageId, SpaceId: rID.SpaceId, OpaqueId: rID.OpaqueId,
+						},
+						Path: "./holiday",
+					},
+					Aggregations: []*searchsvc.AggregationOption{
+						{Field: "Name", Size: 10},
+					},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.Aggregations).To(HaveLen(1))
+				keys := []string{}
+				for _, b := range res.Aggregations[0].Buckets {
+					keys = append(keys, b.Key)
+				}
+				Expect(keys).To(ConsistOf("a.jpg", "b.jpg", "c.jpg"))
 			})
 		})
 	})

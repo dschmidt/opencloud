@@ -78,6 +78,16 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 				),
 			},
 		)
+		// Scope below the space root: restrict at query level so facets,
+		// totals and paging respect the path too. Path is indexed with the
+		// keyword analyzer, so a prefix query matches whole path prefixes.
+		if requestedPath := utils.MakeRelativePath(sir.Ref.Path); requestedPath != "." {
+			q.Conjuncts = append(q.Conjuncts, query.NewDisjunctionQuery([]query.Query{
+				&query.TermQuery{FieldVal: "Path", Term: requestedPath},
+				&query.TermQuery{FieldVal: "Path", Term: requestedPath + "/"},
+				&query.PrefixQuery{FieldVal: "Path", Prefix: requestedPath + "/"},
+			}))
+		}
 	}
 
 	bleveReq := bleve.NewSearchRequest(q)
@@ -109,13 +119,6 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 	// count facets: widen the page so the emulator has enough docs. The caller's
 	// larger PageSize wins.
 	if needsSubAggScan(sir.GetAggregations()) && bleveReq.Size < subAggScanSize {
-		bleveReq.Size = subAggScanSize
-	}
-
-	// Path-scoped searches (scope below the space root) drop out-of-scope hits
-	// after the query ran; the page must cover the full result set or hits and
-	// totals only reflect the first page.
-	if p := sir.GetRef().GetPath(); p != "" && utils.MakeRelativePath(p) != "." && bleveReq.Size < subAggScanSize {
 		bleveReq.Size = subAggScanSize
 	}
 
