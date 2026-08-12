@@ -1382,6 +1382,15 @@ var _ = Describe("DrivesDriveItemApi", func() {
 				}, nil).
 				Once()
 
+			baseGraphProvider.
+				EXPECT().
+				CS3ResourceToDriveItem(mock.Anything).
+				Return(&libregraph.DriveItem{
+					Name:   conversions.ToPointer("New Folder"),
+					Folder: &libregraph.Folder{},
+				}, nil).
+				Once()
+
 			r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer(driveItemJson)).
 				WithContext(
 					context.WithValue(context.Background(), chi.RouteCtxKey, rCTX),
@@ -1411,6 +1420,15 @@ var _ = Describe("DrivesDriveItemApi", func() {
 					Id:   &storageprovider.ResourceId{StorageId: "1", SpaceId: "2", OpaqueId: "3"},
 					Path: "./file.txt",
 					Type: storageprovider.ResourceType_RESOURCE_TYPE_FILE,
+				}, nil).
+				Once()
+
+			baseGraphProvider.
+				EXPECT().
+				CS3ResourceToDriveItem(mock.Anything).
+				Return(&libregraph.DriveItem{
+					Name: conversions.ToPointer("file.txt"),
+					File: &libregraph.OpenGraphFile{},
 				}, nil).
 				Once()
 
@@ -1505,6 +1523,15 @@ var _ = Describe("DrivesDriveItemApi", func() {
 					Path:     "./file.txt",
 					Type:     storageprovider.ResourceType_RESOURCE_TYPE_FILE,
 					MimeType: "text/plain",
+				}, nil).
+				Once()
+
+			baseGraphProvider.
+				EXPECT().
+				CS3ResourceToDriveItem(mock.Anything).
+				Return(&libregraph.DriveItem{
+					Name: conversions.ToPointer("file.txt"),
+					File: &libregraph.OpenGraphFile{MimeType: conversions.ToPointer("text/plain")},
 				}, nil).
 				Once()
 
