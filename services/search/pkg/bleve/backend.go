@@ -79,12 +79,13 @@ func (b *Backend) Search(_ context.Context, sir *searchService.SearchIndexReques
 			},
 		)
 		// Scope below the space root: restrict at query level so facets,
-		// totals and paging respect the path too. Path is indexed with the
-		// keyword analyzer, so a prefix query matches whole path prefixes.
+		// totals and paging respect the path too. Indexed paths always go
+		// through MakeRelativePath (no trailing slashes), and the keyword
+		// analyzer keeps them as single terms: the folder itself is an exact
+		// term, its descendants share the "<path>/" prefix.
 		if requestedPath := utils.MakeRelativePath(sir.Ref.Path); requestedPath != "." {
 			q.Conjuncts = append(q.Conjuncts, query.NewDisjunctionQuery([]query.Query{
 				&query.TermQuery{FieldVal: "Path", Term: requestedPath},
-				&query.TermQuery{FieldVal: "Path", Term: requestedPath + "/"},
 				&query.PrefixQuery{FieldVal: "Path", Prefix: requestedPath + "/"},
 			}))
 		}
