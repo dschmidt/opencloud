@@ -438,7 +438,40 @@ func searchEntityToDriveItem(e *searchmsg.Entity) *libregraph.DriveItem {
 	di.Photo = searchPhotoToLibregraph(e.GetPhoto())
 	di.Location = searchLocationToLibregraph(e.GetLocation())
 	di.LibreGraphMotionPhoto = searchMotionPhotoToLibregraph(e.GetMotionPhoto())
+	di.LibreGraphLivePhoto = searchLivePhotoToLibregraph(e.GetLivePhoto())
+	di.Video = searchVideoToLibregraph(e.GetVideo())
 	return di
+}
+
+func searchLivePhotoToLibregraph(l *searchmsg.LivePhoto) *libregraph.LivePhoto {
+	if l == nil {
+		return nil
+	}
+	return &libregraph.LivePhoto{
+		ContentId:              l.GetContentId(),
+		StillImageTimeUs:       l.StillImageTimeUs,
+		Auto:                   l.Auto,
+		VitalityScore:          l.VitalityScore,
+		VitalityScoringVersion: l.VitalityScoringVersion,
+	}
+}
+
+func searchVideoToLibregraph(v *searchmsg.Video) *libregraph.Video {
+	if v == nil {
+		return nil
+	}
+	return &libregraph.Video{
+		AudioBitsPerSample:    v.AudioBitsPerSample,
+		AudioChannels:         v.AudioChannels,
+		AudioFormat:           v.AudioFormat,
+		AudioSamplesPerSecond: v.AudioSamplesPerSecond,
+		Bitrate:               v.Bitrate,
+		Duration:              v.Duration,
+		FourCC:                v.FourCC,
+		FrameRate:             v.FrameRate,
+		Height:                v.Height,
+		Width:                 v.Width,
+	}
 }
 
 func searchMotionPhotoToLibregraph(m *searchmsg.MotionPhoto) *libregraph.MotionPhoto {
