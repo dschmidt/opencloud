@@ -251,6 +251,40 @@ var _ = ginkgo.Describe("SearchQuery", func() {
 		Expect(called).To(BeTrue())
 	})
 
+	ginkgo.It("carries the motion photo facet on search hits", func() {
+		version, videoSize := int32(1), int64(123456)
+		g := graphWithSearch(stubSearchService{
+			search: func(*searchsvc.SearchRequest) (*searchsvc.SearchResponse, error) {
+				return &searchsvc.SearchResponse{
+					TotalMatches: 1,
+					Matches: []*searchmsg.Match{
+						{Entity: &searchmsg.Entity{
+							Id:          &searchmsg.ResourceID{StorageId: "s", SpaceId: "sp", OpaqueId: "mp"},
+							Name:        "PXL.MP.jpg",
+							MimeType:    "image/jpeg",
+							MotionPhoto: &searchmsg.MotionPhoto{Version: &version, VideoSize: &videoSize},
+						}},
+					},
+				}, nil
+			},
+		})
+
+		rr := postSearchQuery(g, `{"requests": [{"entityTypes": ["driveItem"], "query": {"queryString": "*"}}]}`)
+		Expect(rr.Code).To(Equal(http.StatusOK), rr.Body.String())
+		var resp struct {
+			Value []struct {
+				HitsContainers []struct {
+					Hits []struct {
+						Resource map[string]any `json:"resource"`
+					} `json:"hits"`
+				} `json:"hitsContainers"`
+			} `json:"value"`
+		}
+		Expect(json.Unmarshal(rr.Body.Bytes(), &resp)).To(Succeed())
+		resource := resp.Value[0].HitsContainers[0].Hits[0].Resource
+		Expect(resource["@libre.graph.motionPhoto"]).To(HaveKeyWithValue("videoSize", BeNumerically("==", 123456)))
+	})
+
 	ginkgo.It("expands thumbnails on hits when $expand=thumbnails is requested", func() {
 		coverW, coverH := int32(500), int32(500)
 		g := graphWithSearch(stubSearchService{
